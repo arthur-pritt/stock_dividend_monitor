@@ -1,9 +1,14 @@
 import os
 import  pandas as pd
+from typing import Optional
 
-def load_nasdaq_data():
-    "Loading nasdaq list from data folder"
-
+def load_nasdaq_data()-> Optional[pd.DataFrame]:
+    """Loading nasdaq csv list from data folder
+       
+    Returns:
+     Optional[pd.DataFrame]= Dataframe containing Nasdaq data if successful or
+                                 None if the file is missing, empty, or unreadable.
+    """
     #project script folder
     script_dir = os.path.dirname(os.path.abspath(__file__))
     print(f"1. Script directory {script_dir}")
@@ -24,9 +29,7 @@ def load_nasdaq_data():
     else:
         print(f"5. ERROR: raw folder doesn't exists at {raw_folder}")
 
-
     #loading the data
-
     try:
         df = pd.read_csv(nasdaq_csv_path)
         print(f"SUCCESS: Data has been loaded {len(df)}")
@@ -41,8 +44,8 @@ def load_nasdaq_data():
     except Exception as e:
         print(f"Unexpected error loading data:{type(e).__name__}: {e}")
         return None 
-    
-df = load_nasdaq_data()
+#Usage with type hints   
+df: Optional[pd.DataFrame] = load_nasdaq_data()
 if df is not None:
     print("\n" + "="*50)
     print(df.head())
