@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/          ← This line
+dist/
+build/
+*.egg
+
+# Virtual environments
+stock_dividend_monitor_env/
+venv/
+env/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Pytest
+.pytest_cache/
+
+# Data (if you don't want to commit data files)
+data/*.csv
+data/*.json
+
+# Logs
+logs/
+*.log
