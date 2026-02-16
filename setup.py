@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
 
+
 setup(
     name="stock_dividend_monitor",
     version="0.1.0",

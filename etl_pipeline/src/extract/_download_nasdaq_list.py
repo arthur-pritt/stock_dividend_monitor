@@ -1,7 +1,17 @@
 import os
 import  pandas as pd
+import logging
 from typing import Optional
 
+#importing datetime
+from datetime import datetime
+from config.logging_config import get_logger, setup_logging
+
+#initialize logging system
+setup_logging()
+
+# Then get logger
+logger = get_logger(__name__)
 
 #importing config files
 from config.settings import RAW_DATA_PATH
@@ -16,30 +26,34 @@ def load_nasdaq_data()-> Optional[pd.DataFrame]:
 
     #accessing the nasdaq csv path
     nasdaq_csv_path = RAW_DATA_PATH
-    print(f"Loading from {nasdaq_csv_path}")
-    print(f"File exists at {nasdaq_csv_path.exists()}")
+    logger.info(f"Loading from {nasdaq_csv_path}")
+    logger.info(f"File exists at {nasdaq_csv_path.exists()}")
 
     #loading the data
     try:
         df = pd.read_csv(nasdaq_csv_path)
-        print(f"SUCCESS: Data has been loaded {len(df)}")
+        logger.info(f"SUCCESS: Data has been loaded {len(df)}")
         return df
     except FileNotFoundError:
-        print(f"Error: File not found at {nasdaq_csv_path}")
-        print(f" Ensure the file exists at data/raw/ folder")
+        logger.error(f"Error: File not found at {nasdaq_csv_path}")
+        logger.info(f" Ensure the file exists at data/raw/ folder")
         return None 
     except pd.errors.EmptyDataError:
-        print("Error: The csv file is empty")
+        logger.error("Error: The csv file is empty")
         return None 
     except Exception as e:
-        print(f"Unexpected error loading data:{type(e).__name__}: {e}")
+        logger.error(f"Unexpected error loading data:{type(e).__name__}: {e}")
         return None 
 #Usage with type hints 
 
 if __name__ == "__main__":
+    from config.logging_config import setup_logging
+
+    #initialize logging system
+    setup_logging()
+
     df: Optional[pd.DataFrame] = load_nasdaq_data()
-    if df is not None:
-        print(df.head())
+    
     
 
 

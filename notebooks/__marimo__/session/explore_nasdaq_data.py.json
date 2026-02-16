@@ -1,0 +1,53 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.19.9"
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "b03ae3d1a8c7e35b57a5d71425064bb8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Djnj",
+      "code_hash": null,
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "PfQf",
+      "code_hash": "f3e0e8ccd8caa96623d84bd3913cd4f0",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='PfQf-0' random-id='6d4d1c68-aca7-4996-4886-3d3da0b319e6'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;NVDA&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;NVIDIA Corporation Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:4505463000000.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;AAPL&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Apple Inc. Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:4083118656800.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;GOOG&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Alphabet Inc. Class C Capital Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:3898847700000.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;GOOGL&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Alphabet Inc. Class A Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:3895951620000.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;MSFT&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Microsoft Corporation Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:2978716847547.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;AMZN&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Amazon.com Inc. Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:2248366231434.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;META&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Meta Platforms Inc. Class A Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:1673199757217.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;AVGO&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Broadcom Inc. Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:1578464873163.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;TSLA&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Tesla Inc. Common Stock&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:1542662312942.0},{&#92;&quot;Symbol&#92;&quot;:&#92;&quot;BRK/A&#92;&quot;,&#92;&quot;Name&#92;&quot;:&#92;&quot;Berkshire Hathaway Inc.&#92;&quot;,&#92;&quot;Market Cap&#92;&quot;:1121643841957.0}]&quot;' data-total-rows='110' data-total-columns='3' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;Symbol&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;Name&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;Market Cap&quot;,[&quot;number&quot;,&quot;float64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='true' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stdout",
+          "text": "Started Cleaning the Nasdaq data list. INITIAL ROWS:5337\nCOMPLETE.Final rows:5337\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "HbXL",
+      "code_hash": null,
+      "outputs": [],
+      "console": []
+    }
+  ]
+}
