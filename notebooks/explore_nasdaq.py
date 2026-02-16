@@ -10,35 +10,17 @@ def _():
     import pandas as pd
     import os
 
-
-
-
-    return os, pd
-
-
-@app.cell
-def _(os, pd):
-    def load_nasdaq_data():
-        script_dir=os.path.dirname(os.path.abspath(__file__))
-        project_root=os.path.join(script_dir, '..')
-        nasdaq_csv_path=os.path.join(project_root,'data', 'raw','nasdaq_100_list.csv')
-        df=pd.read_csv(nasdaq_csv_path)
-        return df
-
-    df = load_nasdaq_data()
-    df
-    return (df,)
-
-
-@app.cell
-def _(df):
-    df.head()
     return
 
 
 @app.cell
-def _(df):
-    df.info()
+def _():
+    import pandas as pd
+    from config.settings import RAW_DATA_PATH
+    from etl_pipeline._clean_nasdaq_data import _cleaned_nasdaq_list  # Use etl_pipeline!
+
+    df = _cleaned_nasdaq_list()
+    df.head()
     return
 
 

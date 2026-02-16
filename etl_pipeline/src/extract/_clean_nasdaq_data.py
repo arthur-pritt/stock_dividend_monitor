@@ -3,6 +3,10 @@ import os
 
 #Importing config files
 from config.settings import RAW_DATA_PATH
+from config.logging_config import get_logger 
+
+#Getting the logger for this module
+logger = get_logger(__name__)
 
 
 def _load_nasdaq_data():
@@ -15,29 +19,29 @@ def _load_nasdaq_data():
 
         #Validation: Checking if we actuall have the data
         if df.empty:
-            print(f" ERROR: '{RAW_DATA_PATH} loaded but contain NO DATA ROWS")
+            logger.error(f" ERROR: '{RAW_DATA_PATH} loaded but contain NO DATA ROWS")
             return None 
-        print(f" Started cleaning the Nasdaq data list. INITIAL ROWS: {len(df)}")
+        logger.info(f" Started cleaning the Nasdaq data list. INITIAL ROWS: {len(df)}")
 
     except FileNotFoundError: 
-        print(f" File Not Found: {RAW_DATA_PATH}")
-        print(f" Please check that the file exists in the config path")
+        logger.error(f" File Not Found: {RAW_DATA_PATH}")
+        logger.error(f" Please check that the file exists in the config path")
         return None 
     
     except pd.errors.ParserError as e:
-        print(f" CSV Parsing Error in '{RAW_DATA_PATH}")
-        print(f" {e}")
-        print(" The file maybe corrupted or not a valid csv")
+        logger.error(f" CSV Parsing Error in '{RAW_DATA_PATH}")
+        logger.error(f" {e}")
+        logger.error(" The file maybe corrupted or not a valid csv")
         return None 
     
     except PermissionError:
-        print(f" Permission denied :Cannot  read {RAW_DATA_PATH}")
-        print(f" Check file permission.")
+        logger.error(f" Permission denied :Cannot  read {RAW_DATA_PATH}")
+        logger.error(f" Check file permission.")
         return None 
     
     except Exception as e:
-        print(f" Unexpected Error loading '{RAW_DATA_PATH}")
-        print(f" {type(e).__name__}:{e}")
+        logger.error(f" Unexpected Error loading '{RAW_DATA_PATH}")
+        logger.error(f" {type(e).__name__}:{e}")
         return None 
     
 
@@ -52,7 +56,7 @@ def _cleaned_nasdaq_list():
         return None 
     
     #Cleaning process begins
-    print(f"Started the cleaning process.INITIAL ROWS: {len(df)}")
+    logger.info(f"Started the cleaning process.INITIAL ROWS: {len(df)}")
 
 
     #Inspecting/validating required columns
@@ -65,8 +69,8 @@ def _cleaned_nasdaq_list():
             missing_columns.append(col)
 
     if missing_columns:
-        print(f"ERROR: Missing required columns {missing_columns}")
-        print(f" Available columns: {list(df.columns)}")
+        logger.error(f"ERROR: Missing required columns {missing_columns}")
+        logger.error(f" Available columns: {list(df.columns)}")
         return None 
     
 
@@ -74,14 +78,14 @@ def _cleaned_nasdaq_list():
     try:
         sorting_marketcap = df.sort_values(by= 'Market Cap', ascending=False)
     except Exception as e:
-        print("ERROR: Validating by Market cap: {e}")
+        logger.error("ERROR: Validating by Market cap: {e}")
         return None 
     
     top_110= sorting_marketcap.head(110)
 
     #Warn if fewer than expected.
     if len(top_110)<110:
-        print(f"WARNING: ONLY {len(top_110)} rows available (expected 110)")
+        logger.error(f"WARNING: ONLY {len(top_110)} rows available (expected 110)")
 
 
     #Dropping unnessary columns
@@ -92,12 +96,14 @@ def _cleaned_nasdaq_list():
     clean_nasdaq_data.index = clean_nasdaq_data.index + 1
 
     #Cleaning and sorting completed
-    print(f"COMPLETED. Final rows:{len(clean_nasdaq_data)}")
+    logger.info(f"COMPLETED. Final rows:{len(clean_nasdaq_data)}")
 
     return clean_nasdaq_data
 
 if __name__  == "__main__":
+    from config.logging_config import setup_logging
+    setup_logging()
     cleaned_nasdaq_data = _cleaned_nasdaq_list()
-    print(cleaned_nasdaq_data.head(50))
+    logger.info(cleaned_nasdaq_data.head(50))
     
 
