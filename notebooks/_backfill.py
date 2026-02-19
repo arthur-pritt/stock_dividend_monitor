@@ -23,13 +23,13 @@ def _(Ticker, pd):
     results = []
     for symbol in symbols:
         tickers = Ticker(symbol)
-        tickers_data=tickers.history(period='3mo',interval='1d')
+        tickers_data=tickers.history(period='3mo',interval='3mo')
+        tickers_data=tickers_data.drop(["open","low","high","close","volume"], axis=1)
+        tickers_data=tickers_data.drop_duplicates()
         tickers_data = tickers_data.reset_index()
         results.append(tickers_data)
     data = pd.concat(results, ignore_index=True)
     print(data)
-
-
     return
 
 
