@@ -1,5 +1,7 @@
 import pandas as pd
-import os
+import regex
+from rapidfuzz import process
+
 
 #Importing config files
 from config.settings import RAW_DATA_PATH
@@ -9,101 +11,83 @@ from config.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def _load_nasdaq_data():
-    """Loading the Nasdaq data list from config
-    """
-
-    try:
-        #Load the data from config path
-        df = pd.read_csv(RAW_DATA_PATH)
-
-        #Validation: Checking if we actuall have the data
-        if df.empty:
-            logger.error(f" ERROR: '{RAW_DATA_PATH} loaded but contain NO DATA ROWS")
-            return None 
-        logger.info(f" Started cleaning the Nasdaq data list. INITIAL ROWS: {len(df)}")
-
-    except FileNotFoundError: 
-        logger.error(f" File Not Found: {RAW_DATA_PATH}")
-        logger.error(f" Please check that the file exists in the config path")
-        return None 
+def validateInData():
+    df = pd.read_csv(RAW_DATA_PATH)
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Not a pandas dataframe. It is a {len(df)}")
+    if df.shape[1] <=3 or df.shape[0] <=200:
+        raise ValueError("data has less than 3 columns and 200 rows")
     
-    except pd.errors.ParserError as e:
-        logger.error(f" CSV Parsing Error in '{RAW_DATA_PATH}")
-        logger.error(f" {e}")
-        logger.error(" The file maybe corrupted or not a valid csv")
-        return None 
-    
-    except PermissionError:
-        logger.error(f" Permission denied :Cannot  read {RAW_DATA_PATH}")
-        logger.error(f" Check file permission.")
-        return None 
-    
-    except Exception as e:
-        logger.error(f" Unexpected Error loading '{RAW_DATA_PATH}")
-        logger.error(f" {type(e).__name__}:{e}")
-        return None 
-    
+    required_col = ["Symbol", "Name", "Market Cap"]
+    missing_col = []
 
-def _cleaned_nasdaq_list():
-    """
-    Docstring for _cleaned_nasdaq_list
-    """
-
-    #Load data first and determine if is failed not not
-    df =pd.read_csv(RAW_DATA_PATH)
-    if df is None:
-        return None 
-    
-    #Cleaning process begins
-    logger.info(f"Started the cleaning process.INITIAL ROWS: {len(df)}")
-
-
-    #Inspecting/validating required columns
-    required_columns = ['Symbol','Name','Market Cap','Last Sale', 'Net Change','% Change','IPO Year','Volume','Sector','Industry','Country' ]
-    missing_columns =[]
-
-    for col in required_columns:
-        #checking if the column is not in required columns
+    for col in required_col:
         if col not in df.columns:
-            missing_columns.append(col)
+            missing_col.append(col)
 
-    if missing_columns:
-        logger.error(f"ERROR: Missing required columns {missing_columns}")
-        logger.error(f" Available columns: {list(df.columns)}")
-        return None 
+    if missing_col:
+        raise ValueError(f"The missing column(s) is :{missing_col}")
+    return df 
+
+validated_data= validateInData()
+
+def find_unique_symbol():
+    df = validateInData()
+    return pd.Series(df['Symbol'].unique())
+unique_symbol=find_unique_symbol()
+print(unique_symbol[0:50])
+
+
+def grouping_similar_symbols():
+    df=find_unique_symbol()
+    symbols=df.tolist() 
+    gen_group_symbols={}
+    for name in symbols:
+        if  gen_group_symbols:
+            match, score, _ =process.extractOne(name, list(gen_group_symbols.keys()))
+            if score >80:
+                gen_group_symbols[match].append(name)
+            else:
+                gen_group_symbols[name]= [name]
+        else:
+            gen_group_symbols[name]= [name]
+
+    symbol_ref_list=list(gen_group_symbols.keys())
+    return symbol_ref_list
+reference_list =grouping_similar_symbols()
+
+
+def best_symbol_match():
+    messy_symbols =pd.Series(find_unique_symbol())
+    symbol_group_name = grouping_similar_symbols()
+
+    clean_symbols =messy_symbols.apply(lambda x:pd.Series(process.extractOne(x, symbol_group_name)[:2]))
+    clean_symbols.columns=["Best_match","score"]
+
+    clean_symbols.insert(0,"messy_symbols",messy_symbols.values)
+    return  clean_symbols
+clean_match=best_symbol_match()
+print(clean_match[0:50])
+print(clean_match[50:100])
+
+def group_best_match():
+    df = best_symbol_match()
+    sort_best_symbol=df.sort_values("score", ascending=False )
+
+    df_group=(sort_best_symbol.groupby("Best_match").first().reset_index())
+    return df_group 
+symbol_names=group_best_match()
+print(symbol_names)
+
+
+
+
+#if __name__  == "__main__":
+ #   from config.logging_config import setup_logging
+  #  setup_logging()
+   # cleaned_nasdaq_data = _cleaned_nasdaq_list()
+    #print(cleaned_nasdaq_data.iloc[0:50])
+    #print(cleaned_nasdaq_data.iloc[50:110])
     
-
-    #Sorting columns by market capitalization from the highest to smallest
-    try:
-        sorting_marketcap = df.sort_values(by= 'Market Cap', ascending=False)
-    except Exception as e:
-        logger.error("ERROR: Validating by Market cap: {e}")
-        return None 
-    
-    top_110= sorting_marketcap.head(110)
-
-    #Warn if fewer than expected.
-    if len(top_110)<110:
-        logger.error(f"WARNING: ONLY {len(top_110)} rows available (expected 110)")
-
-
-    #Dropping unnessary columns
-    drop_columns= top_110.drop(columns=['Last Sale', 'Net Change','% Change','IPO Year','Volume','Sector','Industry','Country'])
-
-    #Reseting index. Will use symbol as the primary key
-    clean_nasdaq_data= drop_columns.reset_index(drop=True)
-    clean_nasdaq_data.index = clean_nasdaq_data.index + 1
-
-    #Cleaning and sorting completed
-    logger.info(f"COMPLETED. Final rows:{len(clean_nasdaq_data)}")
-
-    return clean_nasdaq_data
-
-if __name__  == "__main__":
-    from config.logging_config import setup_logging
-    setup_logging()
-    cleaned_nasdaq_data = _cleaned_nasdaq_list()
-    logger.info(cleaned_nasdaq_data.head(50))
     
 
