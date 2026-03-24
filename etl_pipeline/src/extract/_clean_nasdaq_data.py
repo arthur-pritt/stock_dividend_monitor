@@ -38,15 +38,11 @@ def find_unique_symbol(df):
     #Step 1: Extract two columns: Symbol & Name first.
     extract_symbol_name= df[['Symbol', 'Name']]
 
-    #Step 2: Get full list of names
-    symbol_names= extract_symbol_name['Name'].tolist()
-
-    #Step 3:Text normalization: Turning the names into a lower list and stripping away spaces.
-    symbol_names = [items.strip().lower() for items in symbol_names]
-    print(type(symbol_names))
-
-    #Step 4: Stripping away finacial naming convenctions
-    symbol_naming_convenctions=["Warrant", "Common Stock","Class A Ordinary Share Common Stock","class a common stock",
+    #Step 2: Extract NAME alone
+    symbol_names= extract_symbol_name['Name']
+    
+    #Step 3: Stripping away finacial naming convenctions
+    suffix_to_remove=["Warrant", "Common Stock","Class A Ordinary Share Common Stock","class a common stock",
                                     "Units","Rights","(The) Common Stock","Series D Cummulative Preferred Stock",
                                     "Series E Cummulative Redeemable Preferred Stock", "5.35% Global Notes Due 2066",
                                     "Variable Rate Series A Perpetual Preferred Stock", "Series F Fixed-Rate Preferred Stock",
@@ -56,10 +52,33 @@ def find_unique_symbol(df):
                                     "common units representing limited partner interests"," simon property group 8 3/8% series j cumulative redeemable preferred stock",
                                     "i warrant", "perpetual fixed-to-floating rate non-cumulative preferred stock series h",
                                     "class a ordinary shares", " 6.375% series d cumulative redeemable preferred stock liquidation preference $25 per share",
-                                    "4.25% subordinated debentures due 2060", "ordinary shares","8.125% notes due 2029","6.75% series c cumulative redeemable preferred shares of beneficial interest"]
+                                    "4.25% subordinated debentures due 2060", "ordinary shares","8.125% notes due 2029","6.75% series c cumulative redeemable preferred shares of beneficial interest",
+                                    "class a", "class b","class c", "class d", "class e", "class f","preferred stock", "ordinary shares",
+                                    "9.875% Fixed Rate Senior Notes due 2028","6.375% Series D Cumulative Redeemable Preferred Stock",
+                                    "6.25% Series E Cumulative Redeemable Preferred Stock","6.25% Series F Fixed-to-Floating Rate Cumulative Redeemable Preferred Stock",
+                                    "9.125% Senior Notes Due 2030","9.875% Senior Notes Due 2030","9.125% Senior Notes Due 2029"]
     
-    symbol_naming_convenctions=[items.strip().lower() for items in symbol_naming_convenctions]
-    name_list=[]
+    suffix_to_remove=[items.strip().title() for items in suffix_to_remove]
+    def clean_company_name(name):
+        cleaned= name.title()
+        for suffix in suffix_to_remove:
+            cleaned=cleaned.replace(suffix,"")
+        cleaned= " ".join(cleaned.split())
+        cleaned=cleaned.strip('.,')
+        return cleaned
+    
+    symbol_names=symbol_names.copy()
+    print(type(symbol_names))
+    symbol_names=symbol_names.apply(clean_company_name)
+    print(symbol_names[0:50])
+    print(symbol_names[50:100])
+
+    return symbol_names
+
+
+
+
+    
 
     for names in symbol_names:
         if  unwantedNames in symbol_naming_convenctions:
