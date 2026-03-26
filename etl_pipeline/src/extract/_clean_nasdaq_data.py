@@ -1,5 +1,5 @@
 import pandas as pd
-import regex
+import re
 from rapidfuzz import process,fuzz
 
 
@@ -36,27 +36,52 @@ validated_data= validateInData(df)
 
 def find_unique_symbol(df):
     #Step 1: Extract two columns: Symbol & Name first.
-    extract_symbol_name= df[['Symbol', 'Name']]
+    extract_symbol_name= df[['Symbol', 'Name','Market Cap']].copy()
+    #print(extract_symbol_name)
 
-    #Step 2: Extract NAME alone
-    symbol_names= extract_symbol_name['Name']
+    #Step 2: Preserve the original
+    extract_symbol_name['Name_raw'] = extract_symbol_name['Name']
+
+    #Step 3:Normalize the Name column before matching and stripping away the financial naming suffix
+    extract_symbol_name['Name_clean'] =extract_symbol_name['Name'].str.casefold()
     
-    #Step 3: Stripping away finacial naming convenctions
-    suffix_to_remove=["Warrant", "Common Stock","Class A Ordinary Share Common Stock","class a common stock",
-                                    "Units","Rights","(The) Common Stock","Series D Cummulative Preferred Stock",
-                                    "Series E Cummulative Redeemable Preferred Stock", "5.35% Global Notes Due 2066",
-                                    "Variable Rate Series A Perpetual Preferred Stock", "Series F Fixed-Rate Preferred Stock",
-                                    "fund shares of beneficial interest","income & opportunities fund ii shares of beneficial interest",
-                                    "depositary shares each representing a 1/40th interest in a share of 6.50% series g non-cumulative perpetual preferred stock",
-                                    "fifth third bancorp depositary shares each representing a 1/1000th ownership interest in a share of non-cumulative perpetual preferred stock series k",
-                                    "common units representing limited partner interests"," simon property group 8 3/8% series j cumulative redeemable preferred stock",
-                                    "i warrant", "perpetual fixed-to-floating rate non-cumulative preferred stock series h",
-                                    "class a ordinary shares", " 6.375% series d cumulative redeemable preferred stock liquidation preference $25 per share",
-                                    "4.25% subordinated debentures due 2060", "ordinary shares","8.125% notes due 2029","6.75% series c cumulative redeemable preferred shares of beneficial interest",
-                                    "class a", "class b","class c", "class d", "class e", "class f","preferred stock", "ordinary shares",
-                                    "9.875% Fixed Rate Senior Notes due 2028","6.375% Series D Cumulative Redeemable Preferred Stock",
-                                    "6.25% Series E Cumulative Redeemable Preferred Stock","6.25% Series F Fixed-to-Floating Rate Cumulative Redeemable Preferred Stock",
-                                    "9.125% Senior Notes Due 2030","9.875% Senior Notes Due 2030","9.125% Senior Notes Due 2029"]
+    #Step 4: Remove every character that comes after a comma, common stock, ordinary shares and etc.
+    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\..*$', '' ,regex=True).str.strip())
+    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\b\d+\.?\d*%?\b', '', regex=True).str.strip())
+    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\b(corp|corporation)\b.*$', r'\1', regex=True))
+    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\b(common stock|ordinary shares?|common shares?)\b','',regex=True)
+    #                                     .str.replace(r'\s+', ' ',regex=True)
+    #                                     .str.strip())
+    
+    patterns=[
+        r',.*$',
+        r'\..*$', 
+        r'\b(corporation|corp)\b.*$',
+        r'\b(common stock|ordinary shares?|common shares?)\b',
+        r'\b\d+\.?\d*%?\b', 
+
+    ]
+    def clean_company_name(name):
+        cleaned=name
+        for pattern in patterns:
+            if pattern == r'\b(corporation|corp)\b.*$':
+                cleaned = re.sub(pattern, r'\1', cleaned)  
+            else:
+                cleaned=re.sub(pattern,'',cleaned)
+        cleaned= re.sub(r'\s+', ' ', cleaned).strip()
+        return cleaned
+    
+    extract_symbol_name['Name_clean']=extract_symbol_name['Name_clean'].apply(clean_company_name)
+    print(extract_symbol_name[0:50])
+    print(extract_symbol_name[50:100])
+    print(extract_symbol_name[100:150])
+    print(extract_symbol_name[150:200])
+    print(extract_symbol_name[200:250])
+    print(extract_symbol_name.info())
+
+    return extract_symbol_name
+    #
+    # Step 5:
     
     suffix_to_remove=[items.strip().title() for items in suffix_to_remove]
     def clean_company_name(name):
@@ -67,13 +92,13 @@ def find_unique_symbol(df):
         cleaned=cleaned.strip('.,')
         return cleaned
     
-    symbol_names=symbol_names.copy()
-    print(type(symbol_names))
-    symbol_names=symbol_names.apply(clean_company_name)
-    print(symbol_names[0:50])
-    print(symbol_names[50:100])
+    extract_symbol_name=extract_symbol_name.copy()
+    print(type(extract_symbol_name))
+    extract_symbol_name=extract_symbol_name.apply(clean_company_name)
+    print(extract_symbol_name[0:50])
+    print(extract_symbol_name[50:100])
 
-    return symbol_names
+    return extract_symbol_name
 
 
 
