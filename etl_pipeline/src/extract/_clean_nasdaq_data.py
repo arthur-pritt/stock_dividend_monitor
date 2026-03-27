@@ -37,7 +37,8 @@ validated_data= validateInData(df)
 def find_unique_symbol(df):
     #Step 1: Extract two columns: Symbol & Name first.
     extract_symbol_name= df[['Symbol', 'Name','Market Cap']].copy()
-    #print(extract_symbol_name)
+    #print(extract_symbol_name[0:50])
+    #print(extract_symbol_name[50:100])
 
     #Step 2: Preserve the original
     extract_symbol_name['Name_raw'] = extract_symbol_name['Name']
@@ -45,13 +46,7 @@ def find_unique_symbol(df):
     #Step 3:Normalize the Name column before matching and stripping away the financial naming suffix
     extract_symbol_name['Name_clean'] =extract_symbol_name['Name'].str.casefold()
     
-    #Step 4: Remove every character that comes after a comma, common stock, ordinary shares and etc.
-    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\..*$', '' ,regex=True).str.strip())
-    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\b\d+\.?\d*%?\b', '', regex=True).str.strip())
-    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\b(corp|corporation)\b.*$', r'\1', regex=True))
-    #extract_symbol_name['Name_clean'] = (extract_symbol_name['Name_clean'].str.replace(r'\b(common stock|ordinary shares?|common shares?)\b','',regex=True)
-    #                                     .str.replace(r'\s+', ' ',regex=True)
-    #                                     .str.strip())
+    #Step 4: Remove every character that comes after a comma, common stock, ordinary shares and etc using regex pattern matching
     
     patterns=[
         r',.*$',
@@ -72,47 +67,70 @@ def find_unique_symbol(df):
         return cleaned
     
     extract_symbol_name['Name_clean']=extract_symbol_name['Name_clean'].apply(clean_company_name)
-    print(extract_symbol_name[0:50])
-    print(extract_symbol_name[50:100])
-    print(extract_symbol_name[100:150])
-    print(extract_symbol_name[150:200])
-    print(extract_symbol_name[200:250])
-    print(extract_symbol_name.info())
+    #Checking if Null values exist & empty string
+    #print(extract_symbol_name.isna() |(extract_symbol_name['Name_clean'].str.strip()== ''))
+    #print(extract_symbol_name[['Symbol','Market Cap','Name_clean']][200:250])
+    #print(extract_symbol_name[100:150])
+    #print(extract_symbol_name[150:200])
+    #print(extract_symbol_name[200:250])
+    #print(extract_symbol_name.info())
+    
+    # Step 5:Normalize the Name_clean column:"change corporation to corp", "incorporation to inc", & "Company to co"
+    replacements ={
+        r'\bcorporation\b':'corp',
+        r'\bcompany\b' :'co',
+        r'\bincorporation\b':'inc'
+    }
+
+    extract_symbol_name['Name_clean']= extract_symbol_name['Name_clean'].str.replace(replacements, regex=True)
+
+    #Step 6: Remove null values and empty string in Marketcap
+    #print(extract_symbol_name['Market Cap'].isna().sum())
+    #print((extract_symbol_name['Market Cap'].astype(str).str.strip() == '').sum())
+
+    null_values=extract_symbol_name['Market Cap'].notna()
+    empty_string=extract_symbol_name['Market Cap'].astype(str).str.strip() !=''
+    extract_symbol_name=extract_symbol_name[null_values & empty_string]
+
+    #Step 7:Sort the data so that the most valuable companies come on 'Top'
+    ## This ensures that 'Argan Inc' (Common) is seen before 'Argan Inc' (Warrant)
+    extract_symbol_name = extract_symbol_name.sort_values(by=['Symbol','Market Cap'], ascending=[True, False])
+
+    #Step 8: Create a master reference list and filter it the list
+    #drop duplicates based on symbol to keep only the 'TOP' record for eacher Ticker
+    ## We only want the Master List to contain "Common Stock" (no slashes or dots in symbols)
+    master_list= extract_symbol_name.drop_duplicates(subset=['Symbol']).copy()
+    master_list =master_list[~master_list['Symbol'].str.contains(r'[/-]|\.WS', regex=True)]
+
+    #print(f"Original Records:{len(extract_symbol_name)}")
+    #print(f"Master Reference Records:{len(master_list)}")
+
+    #Step 9: Create a list of 'clean names' from the master list using 'Name_clean' column
+    choices = master_list['Name_clean'].tolist()
+
+    #Step 10: A function that finds the best match
+    def find_best_match(messy_name):
+        #if the name is empty, skipt it
+        if not messy_name:
+            return None, 0
+        
+        #Extract to find the best single match from the choices list and use the token_set_ratio scorer
+        result=process.extractOne(messy_name, choices,scorer=fuzz.token_set_ratio)
+
+        #result returns:(Matched_Name,Score,Index)
+        return result[0], result[1]
+    #Step 11: Applying to the original 4986 names and create two columns one for the 'Standard Name' and one for the 'Certainty Score'
+    extract_symbol_name[['standardized_name','match_score',]]=extract_symbol_name['Name_clean'].apply(
+        lambda x:pd.Series(find_best_match(x))
+    )
+
+    print(extract_symbol_name[['Symbol', 'Market Cap', 'standardized_name']][0:50])
+    #print(master_list[['Symbol','Name','Market Cap']][100:50])
+    #print(master_list[['Symbol','Name','Market Cap']][150:200])
+
 
     return extract_symbol_name
-    #
-    # Step 5:
-    
-    suffix_to_remove=[items.strip().title() for items in suffix_to_remove]
-    def clean_company_name(name):
-        cleaned= name.title()
-        for suffix in suffix_to_remove:
-            cleaned=cleaned.replace(suffix,"")
-        cleaned= " ".join(cleaned.split())
-        cleaned=cleaned.strip('.,')
-        return cleaned
-    
-    extract_symbol_name=extract_symbol_name.copy()
-    print(type(extract_symbol_name))
-    extract_symbol_name=extract_symbol_name.apply(clean_company_name)
-    print(extract_symbol_name[0:50])
-    print(extract_symbol_name[50:100])
 
-    return extract_symbol_name
-
-
-
-
-    
-
-    for names in symbol_names:
-        if  unwantedNames in symbol_naming_convenctions:
-            names=symbol_names.replace(unwantedNames, "")
-        name_list.append(names.strip())
-    symbol_names=name_list
-    
-    print(symbol_names[0:50])
-    return symbol_names
 
     
     
