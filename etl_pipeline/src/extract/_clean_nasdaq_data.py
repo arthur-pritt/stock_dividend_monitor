@@ -124,7 +124,83 @@ def find_unique_symbol(df):
         lambda x:pd.Series(find_best_match(x))
     )
 
-    print(extract_symbol_name[['Symbol', 'Market Cap', 'standardized_name']][0:50])
+    #Step 12 : Define the Trust Thresholds ---
+    # These are the "Buckets" 
+    HIGH_TRUST = 90
+    MEDIUM_TRUST = 70
+
+    #Step 13: Create the matching function
+
+    def categorize_matches(messy_name, master_choices):
+        """
+        Find the best match and assign a trust category
+        """
+
+        if not messy_name:
+            return pd.Series([None, 0,"Red: Empty"])
+        # Find the single best match in our Master List
+        # We use token_set_ratio because it handles 'Common Stock' noise best
+
+        result =process.extractOne(
+            messy_name,
+            master_choices,
+            scorer=fuzz.token_set_ratio
+        )
+
+        best_match, score, index= result
+
+        # Assign the Category/Flag
+        if score >= HIGH_TRUST:
+            category = 'Green: Verified'
+        elif score >= MEDIUM_TRUST:
+            category = 'Yellow: Review Needed'
+        else:
+            category = 'Red: New/Unknown'
+        return pd.Series([best_match, score, category])
+    #Step 14:Prepare the Master List names as a list for faster searching and apply
+    choices= master_list['Name_clean'].tolist()
+    extract_symbol_name[['match_name','match_score','trust_level']]=extract_symbol_name['Name_clean'].apply(
+        lambda x: categorize_matches(x,choices)
+    )
+    #Step 15: Mapping the  Real Symbols and Market cap from the Master list back to the original dataframe
+    extract_symbol_name=extract_symbol_name.merge(
+        master_list[['Name_clean', 'Symbol', 'Market Cap']],
+        left_on='match_name',
+        right_on='Name_clean',
+        how='left',
+        suffixes=('','_master')
+    )
+    print(f"Processing Complete You can now filter by trust_level")
+    #Step 16: Keep only the HIGH_CONFIDENCE "green" matches for the final list
+    extract_symbol_name_clean=extract_symbol_name[extract_symbol_name['trust_level']=='Green: Verified'].copy()
+
+    #Step 17: Logging result for the checkpoint
+    #print(f"---DATA CHECKPOINT---")
+    #print(extract_symbol_name['trust_level'].value_counts())
+    #print(f"Total Original Rows:{len(extract_symbol_name)}")
+    #print(f"Verified Rows (Green):{len(extract_symbol_name_clean)}")
+    #print(f"Discard Rows (Yellow/Red):{len(extract_symbol_name)-len(extract_symbol_name_clean)}")
+
+    #Step 18: Grouping and Summing
+    # Group by the 'Standardized Name' and 'Symbol' from the Master List
+    # This ensures that all 'Argan' variations are summed into one total value
+    top_groups=extract_symbol_name_clean.groupby(['Symbol_master','match_name']).agg(
+        {'Market Cap_master':'sum'}
+    ).reset_index()
+
+    #Step 19: Sort by marketcap and trim
+    top_groups.columns=['Symbol','Name','Market Cap']
+    top_groups=top_groups.sort_values(by='Market Cap', ascending=False)
+    final_200=top_groups.head(200)
+
+    print(f"--- FINAL SUMMARY ---")
+    print(f"Top 200 list created. Largest Company: {final_200.iloc[0]['Name']}")
+   
+
+
+
+
+    #print(extract_symbol_name[['Symbol', 'Market Cap', 'standardized_name']][0:50])
     #print(master_list[['Symbol','Name','Market Cap']][100:50])
     #print(master_list[['Symbol','Name','Market Cap']][150:200])
 
