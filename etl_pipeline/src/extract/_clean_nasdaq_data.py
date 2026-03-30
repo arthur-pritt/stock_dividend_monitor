@@ -189,11 +189,44 @@ def get_top_300(final_categorized_df):
     print(final_300['Market Cap'].min())
     return final_300
 top_300=get_top_300(final_categorized_df)
-print(top_300.info())
+#print(top_300.info())
 
-#print(top_200[50:100])
-#print(top_200[100:150])
-#print(top_200[150:200])
+def validate_top_300(top_300):
+    #Confirm we have 300 rows  ONLY
+    if len(top_300) !=300:
+        raise ValueError(f" Expectedly exact rows, got {len(top_300)}")
+    
+    #Confirm the number of columns to be 3
+    if top_300.shape[1]<3:
+        raise ValueError(f" Top 300 has less than 3 columns")
+    
+    #Confirm the three required columns
+    required_col =['Symbol','Name', 'Market Cap']
+    missing_col= []
+    for col in required_col:
+        if col not in top_300:
+            missing_col.append(col)
+    if missing_col:
+        raise ValueError(f" The missing column(s) are {missing_col}")
+    
+    #Confirm market cap values to be float
+    if not pd.api.types.is_float_dtype(top_300['Market Cap']):
+        print(f"Market Cap Values are a float")
+
+    #Confirm Minimums
+    current_min=top_300['Market Cap'].min()
+    print(f"Validation Pass: 300 unique symbols. Minimum Cap: ${current_min:,.0f}")
+    
+    #Confirm symbols has no duplicates
+
+    if top_300['Symbol'].duplicated().any():
+        dupes =top_300[top_300['Symbol'].duplicated()]['Symbol'].tolist()
+        raise ValueError(f" The duplicated symbol found:{dupes}")
+    return top_300
+
+validated_top_300= validate_top_300(top_300)
+print(f"Complete validation process of top 300 nasdaq public listed companies by Market Cap")
+
 
 
 
