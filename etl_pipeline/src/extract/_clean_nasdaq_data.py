@@ -1,6 +1,7 @@
 import pandas as pd
 import re
 from rapidfuzz import process,fuzz
+from yahooquery import Ticker 
 
 
 #Importing config files
@@ -226,6 +227,42 @@ def validate_top_300(top_300):
 
 validated_top_300= validate_top_300(top_300)
 print(f"Complete validation process of top 300 nasdaq public listed companies by Market Cap")
+
+def pre_validate_with_yahoo(symbols):
+    #Initialize  the ticker object with the FULL list
+    t=Ticker(symbols)
+
+    #Ask for the simple pieces of data(price-info)
+    price_data=t.price
+
+    #Ensure there's no errors with yahoo
+    if not isinstance(price_data, dict):
+        raise ValueError("Unexpected API response. Check the internet connection")
+
+    #identify valids vs invalid symbols
+    valid_symbols= []
+    invaiid_symbols = []
+
+    for s in symbols:
+        #Yahooquery returns a dictionary of data found or string message error if not
+        if isinstance(price_data.get(s), dict):
+            valid_symbols.append(s)
+        else:
+            invaiid_symbols.append(s)
+
+    #. The "270" Threshold
+    count = len(valid_symbols)
+    if count<270:
+        raise ValueError(f"CRITICAL FAILURE: Only {count} symbols valid. Manual review required")
+    print(f"API check passed:{count} valid, {len(invaiid_symbols)} invalid.")
+    return valid_symbols
+#Preping the data
+input_list=validated_top_300['Symbol'].tolist()
+verified_symbols=pre_validate_with_yahoo(input_list)
+print(verified_symbols[0:50])
+check_df= pd.DataFrame(verified_symbols[0:50],columns=['Verified_Ticker'])
+print(check_df)
+print(pd.Series(verified_symbols).describe())
 
 
 
