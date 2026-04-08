@@ -2,12 +2,12 @@ import pandas as pd
 import re
 from rapidfuzz import process,fuzz
 from yahooquery import Ticker 
+import pandera.pandas as pa
 
 
 #Importing config files
-from config.settings import RAW_DATA_PATH
 from config.logging_config import get_logger 
-from _download_nasdaq_list import load_nasdaq_data
+from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
 from config.settings import (DATA_COLS,
                              INTERNAL_COLS,
                              CLEANING_PATTERNS,
@@ -20,25 +20,26 @@ from config.settings import (DATA_COLS,
 
 #Getting the logger for this module
 logger = get_logger(__name__)
-
 df=load_nasdaq_data()
-def validateInData(df):
-    
+
+def get_nasdaq_schema(min_rows=200):
+        return pa.DataFrameSchema(
+            columns={
+                DATA_COLS['ticker']: pa.Column(str, nullable=False),
+                DATA_COLS['name']:pa.Column(str, nullable=False),
+                DATA_COLS['valuations']:pa.Column(float, nullable=True)
+
+            },
+            checks=pa.Check(lambda df:len(df) >=min_rows, name="min_row_check"),
+            strict='filter'
+        )
+
+def validateInData(df, min_rows=200):
     if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Not a pandas dataframe. It is a {type(df).__name__}")
-    if df.shape[1] <3 or df.shape[0] <200:
-        raise ValueError("data has less than 3 columns and 200 rows")
+        raise TypeError(f"Expected DataFrame, got {type(df).__name__}")
+
+    return get_nasdaq_schema(min_rows).validate(df)
     
-    required_col = [DATA_COLS['ticker'], DATA_COLS['name'], DATA_COLS['valuations']]
-    missing_col = []
-
-    for col in required_col:
-        if col not in df.columns:
-            missing_col.append(col)
-
-    if missing_col:
-        raise ValueError(f"The missing column(s) is :{missing_col}")
-    return df 
 
 validated_data= validateInData(df)
 
@@ -53,9 +54,6 @@ def extract_columns(validated_data):
     logger.info(f"Extraction Complete. Retained: {', '.join(extracted_columns.columns)}")
 
     return extracted_columns
-
-final_three_columns=extract_columns(validated_data)
-#print(final_three_columns.head())
 
 def normalize_names(final_three_columns):
     copy_three_columns=final_three_columns.copy()
@@ -84,6 +82,9 @@ def normalize_names(final_three_columns):
         lambda x:clean_company_name(x, CLEANING_PATTERNS,CLEANING_REPLACEMENTS))
 
     return copy_three_columns
+
+final_three_columns=extract_columns(validated_data)
+
 normalized_df=normalize_names(final_three_columns)
 
 logger.info(f"Normalization Complete: 'Name_clean' column method")
@@ -104,7 +105,7 @@ def build_master_list(normalized_df):
 
     #Step 8:Filter for "Clean" Symbols only
     #Remove symbol with slashes. dashes, or warrants leaving primary listing  for the Master Reference list
-    master_list=master_list[~master_list[DATA_COLS['ticker']].str.contains(r'[/-]|\.WS', regex=True)]
+    master_list=master_list[~master_list[DATA_COLS['ticker']].str.contains(SYMBOL_EXCLUSION_REGEX, regex=True)]
 
     logger.info(f"Master List Built: {len(master_list)} primary records identified.")
     
@@ -211,7 +212,7 @@ def validate_top_300(top_300):
         raise ValueError(f" The missing column(s) are {missing_col}")
     
     #Confirm market cap values to be float
-    if not pd.api.types.is_float_dtype(top_300[DATA_COLS['valuations']]):
+    if  pd.api.types.is_float_dtype(top_300[DATA_COLS['valuations']]):
         logger.info(f"Market Cap Values are a float")
 
     #Confirm Minimums
@@ -263,18 +264,29 @@ verified_symbols=pre_validate_with_yahoo(input_list)
 check_df= pd.DataFrame(verified_symbols[0:50],columns=['Verified_Ticker'])
 #print(check_df)
 logger.info(pd.Series(verified_symbols).describe())
+logger.info(f"COMPLETE: Validation of symbols with Yahoo search is complete")
+
+if __name__  == "__main__":
+    from config.logging_config import setup_logging
+    setup_logging()
+    logger.info(f"Starting the Nasdaq Cleaning Process...")
+
+    #Loading the data
+    df=load_nasdaq_data()
+
+    #Running the functions
+    validated_data= validateInData(df)
+    final_three_columns=extract_columns(validated_data)
+    normalized_df=normalize_names(final_three_columns)
+    master_reference=build_master_list(normalized_df)
+    final_categorized_df=match_and_categorize(normalized_df,master_reference)
+    top_300=get_top_300(final_categorized_df)
+    validated_top_300= validate_top_300(top_300)
+
+    logger.info(f"PIPELINE COMPLETE: Here are the top five rows")
+    logger.info(validated_top_300.head(10))
 
 
-
-
-
-
-#if __name__  == "__main__":
- #   from config.logging_config import setup_logging
-  #  setup_logging()
-   # cleaned_nasdaq_data = _cleaned_nasdaq_list()
-    #print(cleaned_nasdaq_data.iloc[0:50])
-    #print(cleaned_nasdaq_data.iloc[50:110])
     
     
 
