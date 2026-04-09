@@ -20,7 +20,6 @@ from config.settings import (DATA_COLS,
 
 #Getting the logger for this module
 logger = get_logger(__name__)
-df=load_nasdaq_data()
 
 def get_nasdaq_schema(min_rows=200):
         return pa.DataFrameSchema(
@@ -40,8 +39,6 @@ def validateInData(df, min_rows=200):
 
     return get_nasdaq_schema(min_rows).validate(df)
     
-
-validated_data= validateInData(df)
 
 def extract_columns(validated_data):
     """
@@ -80,14 +77,11 @@ def normalize_names(final_three_columns):
         return cleaned
     copy_three_columns[INTERNAL_COLS['clean_name']]=copy_three_columns[INTERNAL_COLS['clean_name']].apply(
         lambda x:clean_company_name(x, CLEANING_PATTERNS,CLEANING_REPLACEMENTS))
-
+    logger.info(f"Normalization Complete: 'Name_clean' column method")
+    logger.info(f"Normalization Complete: 'Name_clean' column method")
     return copy_three_columns
 
-final_three_columns=extract_columns(validated_data)
 
-normalized_df=normalize_names(final_three_columns)
-
-logger.info(f"Normalization Complete: 'Name_clean' column method")
 #print(normalized_df[['Name','Name_clean']].head())
 
 def build_master_list(normalized_df):
@@ -110,9 +104,6 @@ def build_master_list(normalized_df):
     logger.info(f"Master List Built: {len(master_list)} primary records identified.")
     
     return master_list
-
-master_reference=build_master_list(normalized_df)
-print(master_reference[[DATA_COLS['ticker'],INTERNAL_COLS['clean_name'],DATA_COLS['valuations']]].head(10))
 
 def match_and_categorize(normalized_df,master_reference):
     """
@@ -158,18 +149,14 @@ def match_and_categorize(normalized_df,master_reference):
     logger.info("Matching and Categorization Complete")
     return normalized_df
 
-final_categorized_df=match_and_categorize(normalized_df,master_reference)
-logger.info(final_categorized_df.head())
-logger.info(final_categorized_df.duplicated(subset=[DATA_COLS['ticker']]).sum())
-
-def get_top_300(final_categorized_df):
+def get_top_300(match_and_categorize):
     """
     Final Filtering and Ranking.
     Uses 'max' instead of 'sum' to avoid double-counting share classes.
     """
 
     #Step 13: Keep only Verified (Green) copy
-    df_green=final_categorized_df[final_categorized_df['trust_level']=='Green: Verified'].copy()
+    df_green=match_and_categorize[match_and_categorize['trust_level']=='Green: Verified'].copy()
 
     #Step 14:Group by the Match Name to handle duplicates like GOOG/GOOGL
     # We take the 'first' Symbol and the 'max' Market Cap
@@ -190,44 +177,41 @@ def get_top_300(final_categorized_df):
     print(final_300[DATA_COLS['ticker']].duplicated().sum())
     print(final_300[DATA_COLS['valuations']].min())
     return final_300
-top_300=get_top_300(final_categorized_df)
-#print(top_300.info())
 
-def validate_top_300(top_300):
+def validate_top_300(get_top_300):
     #Confirm we have 300 rows  ONLY
-    if len(top_300) !=300:
+    if len(get_top_300) !=300:
         raise ValueError(f" Expectedly exact rows, got {len(top_300)}")
     
     #Confirm the number of columns to be 3
-    if top_300.shape[1]<3:
+    if get_top_300.shape[1]<3:
         raise ValueError(f" Top 300 has less than 3 columns")
     
     #Confirm the three required columns
     required_col =[DATA_COLS['ticker'], DATA_COLS['name'], DATA_COLS['valuations']]
     missing_col= []
     for col in required_col:
-        if col not in top_300:
+        if col not in get_top_300:
             missing_col.append(col)
     if missing_col:
         raise ValueError(f" The missing column(s) are {missing_col}")
     
     #Confirm market cap values to be float
-    if  pd.api.types.is_float_dtype(top_300[DATA_COLS['valuations']]):
+    if  pd.api.types.is_float_dtype(get_top_300[DATA_COLS['valuations']]):
         logger.info(f"Market Cap Values are a float")
 
     #Confirm Minimums
-    current_min=top_300[DATA_COLS['valuations']].min()
+    current_min=get_top_300[DATA_COLS['valuations']].min()
     logger.info(f"Validation Pass: 300 unique symbols. Minimum Cap: ${current_min:,.0f}")
     
     #Confirm symbols has no duplicates
 
-    if top_300[DATA_COLS['ticker']].duplicated().any():
-        dupes =top_300[top_300[DATA_COLS['ticker']].duplicated()][DATA_COLS['ticker']].tolist()
+    if get_top_300[DATA_COLS['ticker']].duplicated().any():
+        dupes =get_top_300[get_top_300[DATA_COLS['ticker']].duplicated()][DATA_COLS['ticker']].tolist()
         raise ValueError(f" The duplicated symbol found:{dupes}")
-    return top_300
+    logger.info(f"Complete validation process of top 300 nasdaq public listed companies by Market Cap")
+    return get_top_300
 
-validated_top_300= validate_top_300(top_300)
-logger.info(f"Complete validation process of top 300 nasdaq public listed companies by Market Cap")
 
 def pre_validate_with_yahoo(symbols):
     #Initialize  the ticker object with the FULL list
@@ -256,15 +240,9 @@ def pre_validate_with_yahoo(symbols):
     if count<270:
         raise ValueError(f"CRITICAL FAILURE: Only {count} symbols valid. Manual review required")
     logger.info(f"API check passed:{count} valid, {len(invaiid_symbols)} invalid.")
+    logger.info(f"COMPLETE: Validation of symbols with Yahoo search is complete")
+
     return valid_symbols
-#Preping the data
-input_list=validated_top_300['Symbol'].tolist()
-verified_symbols=pre_validate_with_yahoo(input_list)
-#print(verified_symbols[0:50])
-check_df= pd.DataFrame(verified_symbols[0:50],columns=['Verified_Ticker'])
-#print(check_df)
-logger.info(pd.Series(verified_symbols).describe())
-logger.info(f"COMPLETE: Validation of symbols with Yahoo search is complete")
 
 if __name__  == "__main__":
     from config.logging_config import setup_logging
@@ -282,9 +260,12 @@ if __name__  == "__main__":
     final_categorized_df=match_and_categorize(normalized_df,master_reference)
     top_300=get_top_300(final_categorized_df)
     validated_top_300= validate_top_300(top_300)
+    input_list = validated_top_300['Symbol'].tolist() 
+    # The Hand-off
+    verified_list = pre_validate_with_yahoo(input_list)
 
     logger.info(f"PIPELINE COMPLETE: Here are the top five rows")
-    logger.info(validated_top_300.head(10))
+    #logger.info(validated_top_300.head(10))
 
 
     
