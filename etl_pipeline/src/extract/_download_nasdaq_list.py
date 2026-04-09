@@ -1,4 +1,4 @@
-import os
+
 import  pandas as pd
 import logging
 from typing import Optional
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     df: Optional[pd.DataFrame] = load_nasdaq_data()
 
     logger.info(f"SUCCESS:{len(df)} Symbol loaded successfully")
-    print(df.iloc[0:50])
+    logger.info(df.iloc[0:50])
     
     
     
