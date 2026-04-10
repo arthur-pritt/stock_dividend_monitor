@@ -2,9 +2,10 @@ import pandas as pd
 import pandera.pandas as pa
 from yahooquery import Ticker
 
+
+from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA
 #importing config files
 from config.logging_config import get_logger
-from etl_pipeline.src.extract._clean_nasdaq_data import pre_validate_with_yahoo
 from config.settings import (
     DATA_COLS
 )
@@ -12,39 +13,8 @@ from config.settings import (
 #Getting the logger for the module
 logger=get_logger(__name__)
 
-def validate_tickers(df, min_rows=200):
-    """
-    Validating the pandas input that has 3 columns and 300 rows."""
-
-    #Confirm pandas
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected a pandas dataframe but got {type(df).__name__}")
-    
-    #confirm none or empty
-    if df is None or df.empty:
-        raise ValueError(f" The dataframe is empty or none")
-    
-    #confirm rows
-    if df.shape[0]<min_rows:
-        raise ValueError(f"Not enough data. Expected at least 200, got {len(df)}")
-    
-    #confirm column
-    if df.shape[1]<3:
-        raise ValueError(f"Insufficient columns. Expected at least 3 column, got {len(df)}")
-    
-    #required column check
-    required_col={DATA_COLS['ticker'], DATA_COLS['name'], DATA_COLS['valuations']}
-    missing_col= []
-
-    for col in required_col:
-        if col not in df.columns:
-            missing_col.append(col)
-    
-    if missing_col:
-        raise ValueError(f" Required columns are missing. Confirm before proceedinng")
-    
-    print("LOG: Data validation successful. Input meets all structural requirements.")
-    return df 
+def validate_tickers(df):
+    return TICKER_SCHEMA.validate(df)
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
