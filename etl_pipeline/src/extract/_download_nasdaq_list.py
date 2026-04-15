@@ -45,6 +45,8 @@ def load_nasdaq_data()-> Optional[pd.DataFrame]:
     #loading the data
     try:
         df = pd.read_csv(nasdaq_csv_path)
+        #converting the columns into lowecase
+        df.columns = [col.lower().replace(" ", "_") for col in df.columns]
         logger.info(f"SUCCESS: Data has been loaded {len(df)}")
         return df
     except FileNotFoundError:
@@ -67,30 +69,6 @@ def load_nasdaq_data()-> Optional[pd.DataFrame]:
     except Exception as e:
         logger.error(f"Unexpected error loading data:{type(e).__name__}: {e}")
         return None 
-    
-    #===========BOUNDARIES OUT=============
-    
-    if df is None or df.empty:
-        logger.error(f"File loaded but contains no data")
-        return None 
-    
-
-    required_columns = ['Symbol','Name','Market Cap']
-    
-    missing_columns = []
-
-    for col in required_columns:
-        if col not in df.columns:
-            missing_columns.append(col)
-    
-    if missing_columns:
-        logger.error(f"Missing expected columns:{missing_columns}")
-        return None 
-    
-    if df['Symbol'].isnull().any():
-        logger.warning("Some symbols have missing rows-FLAGGED FOR REVIEWS")
-        return None
-
     
 
 #Usage with type hints 

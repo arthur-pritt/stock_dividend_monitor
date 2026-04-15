@@ -162,8 +162,8 @@ def get_top_300(match_and_categorize):
     # We take the 'first' Symbol and the 'max' Market Cap
 
     top_groups = df_green.groupby('match_name').agg(
-        {'Symbol_master':'first',
-         'Market Cap_master':MARKET_CAP_AGG}
+        {'symbol_master':'first',
+         'market_cap_master':MARKET_CAP_AGG}
     ).reset_index()
 
     #Step 15: Rename & sort
@@ -260,7 +260,7 @@ if __name__  == "__main__":
     final_categorized_df=match_and_categorize(normalized_df,master_reference)
     top_300=get_top_300(final_categorized_df)
     validated_top_300= validate_top_300(top_300)
-    input_list = validated_top_300['Symbol'].tolist() 
+    input_list = validated_top_300['symbol'].tolist() 
     # The Hand-off
     verified_list = pre_validate_with_yahoo(input_list)
 
