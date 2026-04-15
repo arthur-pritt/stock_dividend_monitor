@@ -39,22 +39,25 @@ def fetch_raw_data(df):
             if not batch:
                 break
             yield batch
+    all_batches=[]
+    
     for i, batch in enumerate(ticker_batches(symbols_list,10),1):
         logger.info(f"Processing=======Batch {i} ")#Tickers:{', '.join(batch)}
         success = False
 
         for attempt in range(3):
             try:
-                batch=Ticker(batch).history(period='3m',interval='1d')
-                if batch is not None or not batch.empty:
+                batch_df=Ticker(batch).history(period='3m',interval='1d')
+                if batch_df is not None or not batch_df.empty:
                     logger.info(f"Batch {i}:successful on attempt {attempt + 1}")
+                    all_batches.append(batch_df)
                     success = True
                     break
                 else:
                     raise ValueError("Empty Data")
             
             except Exception as e:
-                wait_time=(3*(2**attempt)) + random.uniform((0,0.4))
+                wait_time=(3*(2**attempt)) + random.uniform(0,0.4)
                 if attempt <2:
                     logger.warning(f"Attempt {attempt + 1} failed for batch {i}."
                                    f"Retrying in {wait_time:.2f}s... Error:{e}")
@@ -65,12 +68,16 @@ def fetch_raw_data(df):
             logger.error(f"Batch {i} failed:{e}")
         if success:
             time.sleep(1)
-    
-    print(batch)
-    return "All batches processed"
+    if all_batches:
+        logger.info("Glueing all batches together.......")
+        master_df=pd.concat(all_batches, sort=False)
+        print(type(master_df))
+        #print(master_df[0:50])
+        return master_df
+    else:
+        logger.error(f" No data was collected from any batch")
+        return None
                           
-     
-    
     
 
 if __name__ == "__main__":
@@ -98,7 +105,7 @@ if __name__ == "__main__":
     # Now test YOUR function
     result = validate_tickers(validated_top_300)
     result_2= fetch_raw_data(result)
-    logger.info(result_2)
+    #logger.info(result_2)
     #logger.info(f"Result shape: {result.shape}")
     #logger.info(f"Columns: {result.columns.tolist()}")
     #logger.info(result)
