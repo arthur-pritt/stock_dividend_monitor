@@ -47,9 +47,16 @@ def fetch_raw_data(df):
 
         for attempt in range(3):
             try:
+                #fetching the 90 day historical data with 1 day interval
                 batch_df=Ticker(batch).history(period='3m',interval='1d')
-                if batch_df is not None or not batch_df.empty:
+                if batch_df is not None and not batch_df.empty:
                     logger.info(f"Batch {i}:successful on attempt {attempt + 1}")
+                    # Standardize the MultiIndex before appending
+                    idx = batch_df.index.to_frame()
+                    # Ensure level 1 (dates) is clean UTC
+                    idx.iloc[:, 1] = pd.to_datetime(idx.iloc[:, 1]).dt.tz_localize(None).dt.tz_localize('UTC')
+                    batch_df.index = pd.MultiIndex.from_frame(idx)
+
                     all_batches.append(batch_df)
                     success = True
                     break
@@ -64,8 +71,8 @@ def fetch_raw_data(df):
                     time.sleep(wait_time)
                 else:
                     logger.error(f"Batch {i}:FAILED AFTER 3 ATTEMPTS. Pipelines Moves on")
-            #catch failures but keep looping for the next batch
-            logger.error(f"Batch {i} failed:{e}")
+                    #catch failures but keep looping for the next batch
+                    logger.error(f"Batch {i} failed:{e}")
         if success:
             time.sleep(1)
     if all_batches:
@@ -77,6 +84,54 @@ def fetch_raw_data(df):
     else:
         logger.error(f" No data was collected from any batch")
         return None
+
+def clean_raw_data(df):
+    results = {}
+    df_clean = df.reset_index()
+    df_clean.columns = [str(c).lower() for c in df_clean.columns]
+
+    # --- 1. CLEANING & RENAMING ---
+    if 'dividends' in df_clean.columns:
+        df_clean = df_clean.drop(columns=['dividends'])
+    
+    if 'symbol' not in df_clean.columns:
+        for col in ['level_0', 'index', 'symbol']:
+            if col in df_clean.columns:
+                df_clean = df_clean.rename(columns={col: 'symbol'})
+                break
+
+    if 'date' not in df_clean.columns:
+        if 'level_1' in df_clean.columns:
+            df_clean = df_clean.rename(columns={'level_1': 'date'})
+
+    # --- 2. THE SAFETY GATE ---
+    if 'adjclose' not in df_clean.columns:
+        return None, {"is_empty": True, "error": "Not a price dataframe"}
+
+    # --- 3. THE MAGIC INGREDIENTS (Add these now!) ---
+    # Convert to datetime so .dt.date works
+    df_clean['date'] = pd.to_datetime(df_clean['date'], utc=True)
+    
+    # Drop the 2,569 weekend/holiday nulls
+    df_clean = df_clean.dropna(subset=['adjclose'])
+
+    # --- 4. VALIDATION MATH ---
+    results['is_empty'] = df_clean.empty
+    results['total_rows'] = len(df_clean) 
+    
+    if 'symbol' in df_clean.columns and 'date' in df_clean.columns:
+        results['unique_tickers'] = df_clean['symbol'].nunique()
+        
+        results['trading_days'] = df_clean['date'].dt.date.nunique()
+        results['duplicate_keys'] = int(df_clean.duplicated(subset=['symbol', 'date']).sum())
+        
+        today_utc = pd.Timestamp.now(tz='UTC')
+        results['future_date_count'] = int((df_clean['date'] > today_utc).sum())
+    
+    results['null_row_count'] = int(df_clean.isna().any(axis=1).sum())
+    results['duplicate_rows'] = int(df_clean.duplicated().sum())
+
+    return df_clean, results
                           
     
 
