@@ -147,55 +147,144 @@ def fetch_raw_data(df):
     print(type(master_df))
     return master_df
 
+def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
+    """
+    Cleans and validates stock data.
 
+    Returns:
+    - Cleaned DataFrame
+    - Key validation results (minimal, decision-focused)
+    """
 
+    # --- 0. EARLY EXIT ---
+    if df is None or df.empty:
+        return None, {"is_empty": True, "error": "No data provided"}
 
-def clean_raw_data(df):
-    results = {}
-    df_clean = df.reset_index()
-    df_clean.columns = [str(c).lower() for c in df_clean.columns]
+    # --- 1. CLEANING ---
+    df_clean = df.reset_index(drop=True)
+    df_clean.columns = [str(c).lower().strip() for c in df_clean.columns]
 
-    # --- 1. CLEANING & RENAMING ---
-    if 'dividends' in df_clean.columns:
-        df_clean = df_clean.drop(columns=['dividends'])
-    
-    if 'symbol' not in df_clean.columns:
-        for col in ['level_0', 'index', 'symbol']:
-            if col in df_clean.columns:
-                df_clean = df_clean.rename(columns={col: 'symbol'})
-                break
+    # Safety check
+    required_cols = {'date', 'symbol', 'adjclose',}
+    if not required_cols.issubset(df_clean.columns):
+        return None, {"is_empty": True, "error": "Missing required columns"}
 
-    if 'date' not in df_clean.columns:
-        if 'level_1' in df_clean.columns:
-            df_clean = df_clean.rename(columns={'level_1': 'date'})
+    # Convert + clean
+    df_clean['date'] = pd.to_datetime(df_clean['date'], errors='coerce')
+    df_clean = df_clean.dropna(subset=['date', 'adjclose'])
 
-    # --- 2. THE SAFETY GATE ---
-    if 'adjclose' not in df_clean.columns:
-        return None, {"is_empty": True, "error": "Not a price dataframe"}
+    if df_clean.empty:
+        return df_clean, {"is_empty": True}
 
-    # Convert to datetime so .dt.date works
-    df_clean['date'] = pd.to_datetime(df_clean['date'], utc=True)
-    
-    # Drop the 2,569 weekend/holiday nulls
-    df_clean = df_clean.dropna(subset=['adjclose'])
+    # --- 2. CORE VALIDATION ---
+    min_date = df_clean['date'].min()
+    max_date = df_clean['date'].max()
+    expected_days = count_trading_days(min_date, max_date)
 
-    # --- 4. VALIDATION MATH ---
-    results['is_empty'] = df_clean.empty
-    results['total_rows'] = len(df_clean) 
-    
-    if 'symbol' in df_clean.columns and 'date' in df_clean.columns:
-        results['unique_tickers'] = df_clean['symbol'].nunique()
-        
-        results['trading_days'] = df_clean['date'].dt.date.nunique()
-        results['duplicate_keys'] = int(df_clean.duplicated(subset=['symbol', 'date']).sum())
-        
-        today_utc = pd.Timestamp.now(tz='UTC')
-        results['future_date_count'] = int((df_clean['date'] > today_utc).sum())
-    
-    results['null_row_count'] = int(df_clean.isna().any(axis=1).sum())
-    results['duplicate_rows'] = int(df_clean.duplicated().sum())
+    ticker_counts = (
+        df_clean.groupby('symbol')['date']
+        .nunique()
+        .reset_index(name='actual_days')
+    )
 
-    return df_clean
+    ticker_counts['coverage_pct'] = (
+        ticker_counts['actual_days'] / expected_days * 100
+    ).round(2)
+
+    ticker_counts['is_flagged'] = (
+        ticker_counts['actual_days'] < min_days_threshold
+    )
+
+    # --- 3. MERGE FLAGS BACK ---
+    df_clean = df_clean.merge(
+        ticker_counts,
+        on='symbol',
+        how='left'
+    )
+
+    # --- 4. MINIMAL RESULTS ---
+    results = {
+        "is_empty": False,
+        "unique_tickers": int(ticker_counts['symbol'].nunique()),
+        "expected_trading_days": int(expected_days),
+        "date_range": f"{min_date.date()} to {max_date.date()}",
+        "avg_coverage_pct": float(ticker_counts['coverage_pct'].mean()),
+        "flagged_tickers_count": int(ticker_counts['is_flagged'].sum())
+    }
+
+    return df_clean, results
+
+def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
+    """
+    Audits stock data quality.
+
+    - Counts trading days per ticker
+    - Calculates coverage %
+    - Flags tickers below threshold
+    - Builds a concise results dictionary
+
+    Returns:
+    - DataFrame with audit flags
+    - Results dictionary
+    """
+
+    # --- 0. EARLY EXIT ---
+    if df is None or df.empty:
+        return None, {"is_empty": True, "error": "No data provided"}
+
+    df_audit = df.copy()
+
+    # --- 1. BASIC CHECKS ---
+    required_cols = {'date', 'symbol'}
+    if not required_cols.issubset(df_audit.columns):
+        return None, {"is_empty": True, "error": "Missing required columns"}
+
+    # Ensure datetime
+    df_audit['date'] = pd.to_datetime(df_audit['date'], errors='coerce')
+    df_audit = df_audit.dropna(subset=['date'])
+
+    if df_audit.empty:
+        return df_audit, {"is_empty": True}
+
+    # --- 2. DATE RANGE + EXPECTED DAYS ---
+    min_date = df_audit['date'].min()
+    max_date = df_audit['date'].max()
+    expected_days = count_trading_days(min_date, max_date)
+
+    # --- 3. COUNT ACTUAL DAYS PER TICKER ---
+    ticker_counts = (
+        df_audit.groupby('symbol')['date']
+        .nunique()
+        .reset_index(name='actual_days')
+    )
+
+    # --- 4. COVERAGE + FLAGS ---
+    ticker_counts['coverage_pct'] = (
+        ticker_counts['actual_days'] / expected_days * 100
+    ).round(2)
+
+    ticker_counts['is_flagged'] = (
+        ticker_counts['actual_days'] < min_days_threshold
+    )
+
+    # --- 5. MERGE BACK TO DATA ---
+    df_audit = df_audit.merge(
+        ticker_counts,
+        on='symbol',
+        how='left'
+    )
+
+    # --- 6. BUILD RESULTS (FOCUSED) ---
+    results = {
+        "is_empty": False,
+        "unique_tickers": int(ticker_counts['symbol'].nunique()),
+        "expected_trading_days": int(expected_days),
+        "date_range": f"{min_date.date()} to {max_date.date()}",
+        "avg_coverage_pct": float(ticker_counts['coverage_pct'].mean()),
+        "flagged_tickers_count": int(ticker_counts['is_flagged'].sum())
+    }
+
+    return df_audit, results
                           
     
 
@@ -211,23 +300,29 @@ if __name__ == "__main__":
     setup_logging()
     logger.info("Testing validate_tickers...")
 
-    # Run the chain to get data
+    # Extract + prep
     df = load_nasdaq_data()
-    validated_data = validateInData(df)
-    final_three_columns = extract_columns(validated_data)
-    normalized_df = normalize_names(final_three_columns)
-    master_reference = build_master_list(normalized_df)
-    final_categorized_df = match_and_categorize(normalized_df, master_reference)
-    top_300 = get_top_300(final_categorized_df)
-    validated_top_300 = validate_top_300(top_300)
+    df = validateInData(df)
+    df = extract_columns(df)
+    df = normalize_names(df)
 
-    # Now test YOUR function
-    result = validate_tickers(validated_top_300)
-    result_2= fetch_raw_data(result)
-    logger.info(result_2)
-    #logger.info(f"Result shape: {result.shape}")
-    #logger.info(f"Columns: {result.columns.tolist()}")
-    #logger.info(result)
+    master = build_master_list(df)
+    df = match_and_categorize(df, master)
+
+    top_300 = get_top_300(df)
+    top_300 = validate_top_300(top_300)
+
+    # Fetch + process
+    tickers = validate_tickers(top_300)
+    raw_data = fetch_raw_data(tickers)
+
+    clean_df, clean_results = clean_and_validate(raw_data)
+    audited_df, audit_results = audit_raw_data(clean_df)
+
+    # Log results (not full dataframes)
+    logger.info(clean_results)
+    logger.info(audit_results)
+
 
 
 
