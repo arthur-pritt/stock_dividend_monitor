@@ -70,6 +70,7 @@ def fetch_raw_data(df):
 
     # Prepare symbols (keep original case - yahooquery is case-insensitive)
     symbols = df[DATA_COLS['ticker']].astype(str).str.strip().tolist()
+    symbols=[symbol.lower() for symbol in symbols]
 
     # Generate batches of 10
     def ticker_batches(tickers, batch_size=10):
@@ -144,7 +145,6 @@ def fetch_raw_data(df):
     logger.info(f"fetch_raw_data completed → {len(master_df)} rows, "
                 f"{master_df['symbol'].nunique()} unique tickers")
 
-    print(type(master_df))
     return master_df
 
 def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
@@ -175,41 +175,17 @@ def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
 
     if df_clean.empty:
         return df_clean, {"is_empty": True}
-
-    # --- 2. CORE VALIDATION ---
+    
+    #Max and Min date
+    
     min_date = df_clean['date'].min()
     max_date = df_clean['date'].max()
-    expected_days = count_trading_days(min_date, max_date)
-
-    ticker_counts = (
-        df_clean.groupby('symbol')['date']
-        .nunique()
-        .reset_index(name='actual_days')
-    )
-
-    ticker_counts['coverage_pct'] = (
-        ticker_counts['actual_days'] / expected_days * 100
-    ).round(2)
-
-    ticker_counts['is_flagged'] = (
-        ticker_counts['actual_days'] < min_days_threshold
-    )
-
-    # --- 3. MERGE FLAGS BACK ---
-    df_clean = df_clean.merge(
-        ticker_counts,
-        on='symbol',
-        how='left'
-    )
 
     # --- 4. MINIMAL RESULTS ---
     results = {
         "is_empty": False,
-        "unique_tickers": int(ticker_counts['symbol'].nunique()),
-        "expected_trading_days": int(expected_days),
-        "date_range": f"{min_date.date()} to {max_date.date()}",
-        "avg_coverage_pct": float(ticker_counts['coverage_pct'].mean()),
-        "flagged_tickers_count": int(ticker_counts['is_flagged'].sum())
+        "unique_tickers": int(df_clean['symbol'].nunique()),
+        "date_range": f"{min_date.date()} to {max_date.date()}"
     }
 
     return df_clean, results
@@ -285,8 +261,40 @@ def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
     }
 
     return df_audit, results
-                          
+
+def validate_data_out(df):
+
+    #confirm if the dataframe is none
+    if df is None:
+        raise ValueError(f"No values present in a dataframe for the validate_data_out function")
+
+    #Confirm if it is a pandas dataframe
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Input is not a pandas dataframe. Got {type(df).__name__}")
+    df.columns=[col.lower().replace(" ", "_") for col in df.columns]
     
+    
+    #confirm if there are no values in the dataframe
+    if df.empty:
+        raise ValueError(f" The dataframe has no values. It's empty")
+    
+    #confirm the minimum number of rows to be 6830
+    if df.shape[0]<6830:
+        raise ValueError(f" The dataframe has less than 6830 rows which rep the 110 tickers. got: {df.shape[0]}")
+    
+    #confirm the required columns
+    required_col= ['symbol', 'date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
+    missing_col=[]
+    for col in required_col:
+        if col not in df.columns:
+            missing_col.append(col)
+
+    if missing_col:
+        raise ValueError(f" missing columns are {missing_col}")
+    
+    logger.info(f"VALIDATION OF HISTORICAL DATA COMPLETE")
+    return df
+     
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
@@ -318,10 +326,12 @@ if __name__ == "__main__":
 
     clean_df, clean_results = clean_and_validate(raw_data)
     audited_df, audit_results = audit_raw_data(clean_df)
+    historical_df=validate_data_out(audited_df)
 
     # Log results (not full dataframes)
     logger.info(clean_results)
-    logger.info(audit_results)
+    logger.info(audited_df.info())
+    logger.info(historical_df)
 
 
 
