@@ -1,12 +1,13 @@
 import pandas as pd 
 import unittest
+import pytest
 import pandera.pandas as pa
 from pandera.errors import SchemaError
 from unittest.mock import patch, Mock, call
 from pandera import Column,check,DataFrameSchema
 
 #importing modules
-from etl_pipeline.src.extract._backfill import validate_tickers
+from etl_pipeline.src.extract._backfill import validate_tickers,validate_data_out
 from config.settings import DATA_COLS
 
 class Testvalidate_tickers(unittest.TestCase):
@@ -54,3 +55,40 @@ class Testvalidate_tickers(unittest.TestCase):
         })
         with self.assertRaises(pa.errors.SchemaError):
             validate_tickers(df_bad)
+class TestValidate_date_out(unittest.TestCase):
+    def test_none_input(self):
+        with pytest.raises(ValueError):
+            validate_data_out(None)
+    
+    def test_not_dataframe_input(self):
+        df=[1,2,3]
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("Expected a pandas Dataframe")
+        
+    def test_empty_dataframe(self):
+        df=pd.DataFrame()
+        with self.assertRaises(ValueError):
+            validate_data_out(df)
+    
+    def test_too_few_rows(self):
+        df=pd.DataFrame({
+            "tickers":['AAPL'] #One column
+        })
+        with self.assertRaises(ValueError):
+            validate_data_out(df)
+    
+    def test_missing_columns(self):
+        df=pd.DataFrame({
+            "symbol": ["AAPL"],
+            "date": ["2024-01-01"]
+        })
+
+        with self.assertRaises(SchemaError):
+            validate_data_out(df)
+
+
+
+
+
+    
+
