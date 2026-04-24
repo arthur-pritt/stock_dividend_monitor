@@ -8,7 +8,7 @@ from itertools import islice
 
 
 
-from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA, HISTORICAL_SCHEMA
+from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA
 #importing config files
 from config.logging_config import get_logger
 from config.settings import (
@@ -283,18 +283,16 @@ def validate_data_out(df):
         raise ValueError(f" The dataframe has less than 6830 rows which rep the 110 tickers. got: {df.shape[0]}")
     
     #confirm the required columns
-    #required_col= ['symbol', 'date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
-    #missing_col=[]
-    #for col in required_col:
-    #    if col not in df.columns:
-    #        missing_col.append(col)
+    required_col= ['symbol', 'date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
+    missing_col=[]
+    for col in required_col:
+        if col not in df.columns:
+            missing_col.append(col)
 
-    #if missing_col:
-    #    raise ValueError(f" missing columns are {missing_col}")
+    if missing_col:
+        raise ValueError(f" missing columns are {missing_col}")
     
-    df= HISTORICAL_SCHEMA.validate(df)
     logger.info(f"VALIDATION OF HISTORICAL DATA COMPLETE")
-    
     return df
      
 

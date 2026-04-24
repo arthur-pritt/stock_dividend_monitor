@@ -57,13 +57,15 @@ class Testvalidate_tickers(unittest.TestCase):
             validate_tickers(df_bad)
 class TestValidate_date_out(unittest.TestCase):
     def test_none_input(self):
-        with pytest.raises(ValueError):
+        with self.assertRaises(ValueError):
             validate_data_out(None)
     
     def test_not_dataframe_input(self):
         df=[1,2,3]
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Expected a pandas Dataframe")
+
+        with self.assertRaises(TypeError):
+            validate_data_out(df)
+            
         
     def test_empty_dataframe(self):
         df=pd.DataFrame()
@@ -72,16 +74,25 @@ class TestValidate_date_out(unittest.TestCase):
     
     def test_too_few_rows(self):
         df=pd.DataFrame({
-            "tickers":['AAPL'] #One column
+            "symbol": ["AAPL"], "date": ["2024-01-01"], "adjclose": [100.0],
+            "volume": [1000], "coverage_pct": [0.95], "is_flagged": [False],
+            "actual_days": [252]
         })
         with self.assertRaises(ValueError):
             validate_data_out(df)
     
     def test_missing_columns(self):
         df=pd.DataFrame({
-            "symbol": ["AAPL"],
-            "date": ["2024-01-01"]
+            "symbol": ["AAPL"]*7000,
+            "date": ["2024-01-01"]*7000,
+            "adjclose": [100.0] * 7000,
+            "volume": [1000] * 7000,
+            "coverage_pct": [0.95] * 7000,
+            "is_flagged": [False] * 7000,
+            "actual_days": [252] * 7000,
         })
+
+        df = df.drop(columns=["volume"])
 
         with self.assertRaises(SchemaError):
             validate_data_out(df)
