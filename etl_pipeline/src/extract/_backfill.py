@@ -157,12 +157,18 @@ def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
     """
 
     # --- 0. EARLY EXIT ---
-    if df is None or df.empty:
-        return None, {"is_empty": True, "error": "No data provided"}
+    if df is None:
+        raise ValueError("No data provided")
+    
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected DataFrame got {type(df).__name__}")
+    
+    if df.empty:
+        raise ValueError("Received empty dataframe")
 
     # --- 1. CLEANING ---
     df_clean = df.reset_index(drop=True)
-    df_clean.columns = [str(c).lower().strip() for c in df_clean.columns]
+    df_clean.columns = [str(c).lower().strip().replace(" ", "_") for c in df_clean.columns]
 
     # Safety check
     required_cols = {'date', 'symbol', 'adjclose',}
@@ -171,6 +177,10 @@ def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
 
     # Convert + clean
     df_clean['date'] = pd.to_datetime(df_clean['date'], errors='coerce')
+    if df_clean['date'].dt.tz is None:
+        df_clean['date'] = df_clean['date'].dt.tz_localize('UTC')
+    else:
+        df_clean['date'] = df_clean['date'].dt.tz_convert('UTC')
     df_clean = df_clean.dropna(subset=['date', 'adjclose'])
 
     if df_clean.empty:

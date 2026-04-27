@@ -7,7 +7,7 @@ from unittest.mock import patch, Mock, call
 from pandera import Column,check,DataFrameSchema
 
 #importing modules
-from etl_pipeline.src.extract._backfill import validate_tickers,validate_data_out,clean_and_validate
+from etl_pipeline.src.extract._backfill import validate_tickers,validate_data_out,clean_and_validate, audit_raw_data
 from config.settings import DATA_COLS
 
 class Testvalidate_tickers(unittest.TestCase):
@@ -126,6 +126,30 @@ class TestClean_and_validate(unittest.TestCase):
         results_df,_=clean_and_validate(df)
         self.assertEqual(len(results_df),6999)
 
+class TestAudit_raw_data(unittest.TestCase):
+    def test_none_input(self):
+        with self.assertRaises(ValueError):
+            audit_raw_data(None)
+    def test_not_dataframe_input(self):
+        df=[1,2,]
+        with self.assertRaises(TypeError):
+            audit_raw_data(df)
+    def test_empty_dataframe(self):
+        df=pd.DataFrame()
+        with self.assertRaises(ValueError):
+            audit_raw_data(df)
+    def test_valid_dataframe_passes(self):
+        df = pd.DataFrame({
+        "symbol": ["AAPL"]*7000,
+        "date": pd.to_datetime(["2024-01-01"]*7000).tz_localize('UTC'),
+        "adjclose": [100.0]*7000,
+        "volume": [1000]*7000,
+        "coverage_pct": [0.95]*7000,
+        "is_flagged": [False]*7000,
+        "actual_days": [252]*7000
+        })
+        result, _ = audit_raw_data(df)
+        self.assertIsInstance(result, pd.DataFrame)
 
 class TestValidate_date_out(unittest.TestCase):
     def test_none_input(self):
