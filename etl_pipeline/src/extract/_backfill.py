@@ -83,8 +83,14 @@ def fetch_raw_data(df):
 
     all_batches = []
     start_str, end_str = _get_last_63_trading_days()
+    # yahooquery end is exclusive so add 1 calendar day
+
+    end_date_exclusive = (
+    pd.to_datetime(end_str) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+
 
     logger.info(f"Fetching last 63 trading days: {start_str} to {end_str}")
+    logger.info(f"Note: end date {end_str} may not be available yet if market is open or data unpublished")
 
     for i, batch in enumerate(ticker_batches(symbols, 10), 1):
         logger.info(f"Processing=======Batch {i}")
@@ -95,7 +101,7 @@ def fetch_raw_data(df):
                 #explicit start/end
                 batch_df = Ticker(batch).history(
                     start=start_str,
-                    end=end_str,
+                    end=end_date_exclusive,
                     interval='1d'
                 )
 
@@ -215,8 +221,13 @@ def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
     """
 
     # --- 0. EARLY EXIT ---
-    if df is None or df.empty:
-        return None, {"is_empty": True, "error": "No data provided"}
+    if df is None:
+        raise ValueError ("No data provided")
+    
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f" Not a pandas dataframe. Got {type(df).__name__}")
+    if df.empty:
+        raise ValueError("Received an empty dataframe")
 
     df_audit = df.copy()
 
@@ -343,14 +354,4 @@ if __name__ == "__main__":
     logger.info(audited_df.info())
     logger.info(historical_df)
 
-
-
-
     
-
-
-    
-
-
-
-
