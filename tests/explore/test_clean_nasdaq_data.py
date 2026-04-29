@@ -1,6 +1,4 @@
 import pandas as pd
-from pathlib import Path
-import sys
 import unittest
 import pandera.pandas as pa
 from unittest.mock import patch, Mock, call
