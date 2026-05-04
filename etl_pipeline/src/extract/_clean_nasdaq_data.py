@@ -265,7 +265,7 @@ if __name__  == "__main__":
     verified_list = pre_validate_with_yahoo(input_list)
 
     logger.info(f"PIPELINE COMPLETE: Here are the top five rows")
-    #logger.info(validated_top_300.head(10))
+    logger.info(validated_top_300.head(10))
 
 
     

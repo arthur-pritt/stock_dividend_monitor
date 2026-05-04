@@ -12,6 +12,46 @@ from config.settings import DATA_COLS
 
 logger= get_logger(__name__)
 
+def count_nyse_trading_days(start_date, end_date, inclusive=True, calendar_name= 'NYSE'):
+    """
+    Counts the number of valid NYSE trading dates and returns an integer."""
+
+    #Step 0: Validate: if start_date is greater than end date, the system raises  valuerror.
+    if start_date > end_date:
+        raise ValueError(f"ERROR: Start_date ({start_date}) cannot be greater than ({end_date})")
+    
+    #Step 1: Get the NYSE calendar
+    calendar= mcal.get_calendar(calendar_name)
+
+    #Step 2: Get the schedule
+    schedule= calendar.schedule(start_date,end_date)
+
+    #Step 3: Normalize to date and convert everything to UTC.
+    trading_dates=pd.to_datetime(schedule.index.date).tz_localize('UTC')
+    trading_dates=trading_dates.drop_duplicates(keep='first')
+    
+
+    #Step 4: Count valid trading days
+    valid_trading_days=len(trading_dates)
+
+    #Step 5: Handle special days
+    if start_date == end_date:
+        if valid_trading_days == 1 and inclusive:
+            return 1
+        else:
+            return 0
+        
+    #Step 6: Handle inclusive= False for different dates
+    if not inclusive and valid_trading_days > 0:
+        dates_str=trading_dates.strftime('%Y-%m-%d')
+        if dates_str[0]==start_date:
+            valid_trading_days -=1
+        if valid_trading_days > 0 and dates_str[-1]== end_date:
+            valid_trading_days -= 1
+            
+    logger.info("COMPLETE: Count NYSE Trading Days Working Fine")
+    return valid_trading_days
+
 def validate_tickers(df):
     #Basic validation
     if df is None:
@@ -34,18 +74,22 @@ def validate_tickers(df):
     
     #Pandera validation
     try:
-        validate_df=CURRENT_PRICE_FILE_SCHEMA.validate(df,lazy=True)
+        validated_df=CURRENT_PRICE_FILE_SCHEMA.validate(df,lazy=True)
         logger.info(f"Pandera validation successfully passed")
     except pa.errors.SchemaErrors as err:
         logger.error(f"Pandera Validation Failed")
         logger.error(err.failure_cases)
         raise
 
-    #Drops rows where valuation is NaN
-    validate_df=validate_df.dropna(subset=[DATA_COLS['valuations']])
     #Convert ticker to uppercase for use with yfinance
-    validate_df[DATA_COLS['ticker']].str.upper().str.strip()
-    return validate_df
+    validated_df[DATA_COLS['ticker']]=validated_df[DATA_COLS['ticker']].str.upper().str.strip()
+
+    # Then drop NaNs in market_cap
+    validated_df = validated_df.dropna(subset=["market_cap"])
+
+    logger.info(f"Final validated dataset: {len(validated_df)} rows after dropping NaNs")
+
+    return validated_df
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging

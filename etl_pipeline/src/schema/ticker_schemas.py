@@ -16,26 +16,26 @@ CURRENT_PRICE_FILE_SCHEMA = pa.DataFrameSchema({
         nullable=False,
         unique=True, #No duplicates
         checks=[
-            Check.str_length(min_value=1), #No empty string
-            Check(lambda s:~s.str.strip().eq("")) #No whitespace-only string
+            Check.str_length(min_value=1), 
+            Check(lambda s:~s.str.strip().eq("")) 
         ]),
 
     DATA_COLS['name']:pa.Column(
         dtype=str,
         nullable=False,
-        unique=True, #No duplicates
+        unique=False, 
         checks=[
             Check.str_length(min_value=1), #No empty string
-            Check(lambda  s:~s.str.strip().eq("")) #No whitespace-only string
+            Check(lambda s:~s.str.strip().eq("")) #No whitespace-only string
         ]),
 
     DATA_COLS['valuations']:pa.Column(
         dtype=float, 
-        nullable=False,
+        nullable=True,
         )
     },
-    strict=False,#To allow extra column in the schema
-    coerce=True) #converts ints to float
+    strict=False,
+    coerce=True) 
 
 HISTORICAL_SCHEMA = pa.DataFrameSchema({
     "symbol": Column(str),
