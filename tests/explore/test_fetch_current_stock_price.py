@@ -5,11 +5,26 @@ import logging
 import pandera.pandas as pa
 from pandera.errors import SchemaError
 from unittest.mock import patch, Mock, call
+from datetime import datetime 
+import pandas_market_calendars as mcal 
 
 
 #Importing necessary modules
-from etl_pipeline.src.extract._fetch_current_stock_price import validate_tickers
+from etl_pipeline.src.extract._fetch_current_stock_price import validate_tickers,count_nyse_trading_days
 from config.settings import DATA_COLS
+
+class TestCount_trading_days(unittest.TestCase):
+    def test_startdate_notgreaterthan_enddate(self):
+        """Test that function raises ValueError when start_date > end_date."""
+        with self.assertRaises(ValueError):
+            count_nyse_trading_days("2024-01-10", "2024-01-01")
+    
+    def test_normal_date_range_returns_correct_count(self):
+        result, dates=count_nyse_trading_days("2020-01-01","2020-01-10")
+        self.assertIsInstance(result,int)
+        self.assertGreater(result,0)
+        self.assertIsInstance(dates, pd.DatetimeIndex)
+
 
 class TestValidate_tickers(unittest.TestCase):
     def test_none_input(self):
