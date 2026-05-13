@@ -113,8 +113,9 @@ def recent_two_trading_days():
             continue 
 
         market_close_found= True 
-        candidate_date= schedule.copy
-        candidate_date=candidate_date[['date', 'market_close']]
+        candidate_date= schedule.copy()
+    print(type(candidate_date))
+    candidate_date=candidate_date[['date', 'market_close']]
     
     invalid_streak= 0
     maxi_attempts= 14
@@ -126,7 +127,7 @@ def recent_two_trading_days():
 
     while valid_days < max_days:
         #checking today
-        if valid_days == 0 and not candidate_date.empty:
+        if valid_days == 0 and candidate_date.empty is not None:
             #append the valid day to the list
             valid_dates.append({
                 'date': candidate_date['date'].iloc[0],
@@ -139,7 +140,7 @@ def recent_two_trading_days():
             continue
 
         #Fetching Next candidate date
-        schedule=nyse.schedule(start_date=curr_date.date(),end_date=curr_date)
+        schedule=nyse.schedule(start_date=curr_date.date(),end_date=curr_date.date())
         candidate_date= schedule.reset_index()
         candidate_date=candidate_date.rename(columns={'index':'date'})
 
@@ -231,10 +232,10 @@ if __name__ == "__main__":
     tickers= validate_top_300(top_300)
     tickers=validate_tickers(tickers)
     valid_days, _= count_nyse_trading_days('2025-01-01', '2026-01-10', inclusive=True)
-    candidate_date=recent_two_trading_days()
+    candidate_days=recent_two_trading_days()
     print(tickers.info)
     print(valid_days)
-    print(candidate_date)
+    print(candidate_days)
 
 
     
