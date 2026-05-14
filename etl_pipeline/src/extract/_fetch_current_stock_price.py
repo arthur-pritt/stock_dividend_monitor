@@ -205,6 +205,55 @@ def validate_tickers(df):
 
     return validated_df
 
+def generate_batches(df):
+    """Generate tickers batches of 10 out 300 tickers"""
+
+    #Validating incoming data
+
+    if df is None or df.empty:
+        logger.error("No dataframe provided to generate_batches")
+        return None 
+    
+    #Preping the tickers
+    try:
+        symbols=(
+            df[DATA_COLS['ticker']]
+            .astype(str)
+            .str.strip()
+            .unique()
+            .tolist()
+        )
+    except KeyError:
+        logger.error(f"Column {DATA_COLS['ticker']} not found in the database")
+        return None 
+    if not symbols:
+        logger.warning(f"No ticker found during processing")
+    
+
+    #Generate batches of 10 function
+
+    def ticker_batches(tickers, batch_size=10):
+        tickers= iter(tickers)
+        while True:
+            batch=list(islice(tickers, batch_size))
+            if not batch:
+                break
+            yield batch 
+
+    all_batches= []
+
+    for i, batch in enumerate(ticker_batches(symbols,10),1):
+        all_batches.append(batch)
+        logger.info(f"Generated Batch ==== {i:2d} | Size: {len(batch)}")
+    if not all_batches:
+        logger.error(f"No data was collected from any batch")
+        return None 
+    
+    logger.info(f"COMPLETED: Generated {len(all_batches)} batches")
+    return all_batches 
+
+
+
 if __name__ == "__main__":
     from config.logging_config import setup_logging
     from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
@@ -233,9 +282,11 @@ if __name__ == "__main__":
     tickers=validate_tickers(tickers)
     valid_days, _= count_nyse_trading_days('2025-01-01', '2026-01-10', inclusive=True)
     candidate_days=recent_two_trading_days()
+    batches=generate_batches(tickers)
     print(tickers.info)
     print(valid_days)
     print(candidate_days)
+    print(batches)
 
 
     
