@@ -206,7 +206,7 @@ def validate_tickers(df):
     return validated_df
 
 def generate_batches(df):
-    """Generate tickers batches of 10 out 300 tickers"""
+    """Generate ticker symbols in batches"""
 
     #Validating incoming data
 
@@ -226,16 +226,18 @@ def generate_batches(df):
     except KeyError:
         logger.error(f"Column {DATA_COLS['ticker']} not found in the database")
         return None 
+    except Exception as e:
+        logger.error(f"Unexpected error preparing tickers: {e}")
+        return None 
     if not symbols:
         logger.warning(f"No ticker found during processing")
-    
-
+        return []
     #Generate batches of 10 function
 
     def ticker_batches(tickers, batch_size=10):
-        tickers= iter(tickers)
+        tickers = iter(tickers)
         while True:
-            batch=list(islice(tickers, batch_size))
+            batch = list(islice(tickers, batch_size))
             if not batch:
                 break
             yield batch 
@@ -245,9 +247,6 @@ def generate_batches(df):
     for i, batch in enumerate(ticker_batches(symbols,10),1):
         all_batches.append(batch)
         logger.info(f"Generated Batch ==== {i:2d} | Size: {len(batch)}")
-    if not all_batches:
-        logger.error(f"No data was collected from any batch")
-        return None 
     
     logger.info(f"COMPLETED: Generated {len(all_batches)} batches")
     return all_batches 
