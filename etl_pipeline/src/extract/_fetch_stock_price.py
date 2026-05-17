@@ -8,7 +8,7 @@ from itertools import islice
 from datetime import datetime, timedelta
 
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA,CURRENT_PRICE_FILE_SCHEMA
-from etl_pipeline.src.extract._smart_session import SmartSession
+from etl_pipeline.src.extract._smart_session import RobustCurlSession
 
 from config.logging_config import get_logger
 from config.settings import DATA_COLS
@@ -117,15 +117,14 @@ def recent_two_trading_days():
 
         market_close_found= True 
         candidate_date= schedule.copy()
-    print(type(candidate_date))
+    
     candidate_date=candidate_date[['date', 'market_close']]
     
     invalid_streak= 0
     maxi_attempts= 14
     valid_days= 0
     max_days= 2
-    valid_dates =[]
-    valid_days_found= False 
+    valid_dates=[]
     curr_date = reference_dt
 
     while valid_days < max_days:
@@ -259,14 +258,10 @@ def fetch_adjusted_close(df):
     "Fetching daily adjusted close price and returning a dataframe."
 
     #Creating/initiliazing the custom session
-    session=SmartSession(
-        per_second=1,
-        per_minute=80,
-        burst=8,
-        total_retries=5,
-        backoff_factor=1.5,
-        expire_after=3600,
-        cache_name="yahoo_cache"
+    curl_session = RobustCurlSession(
+        impersonate= "chrome131",
+        delay_min=1.0,
+        delay_max=2.
     )
 
     #Store tickers from all batches
@@ -277,12 +272,11 @@ def fetch_adjusted_close(df):
 
     for batch_number, tickers in enumerate(df, start=1):
         logger.info(f"Processing Batch {batch_number}/30 | Tickers:{len(tickers)}")
-        print(f"Type: {type(df)}, value:{df}")
+        
 
         try:
             #Geting the two recent trading days
             last_two_days=recent_two_trading_days()
-            logger.info(f"Date types: {type(last_two_days[0])}, values: {last_two_days}")
 
             #Preping the start and end dates
             start_date=last_two_days[1]
@@ -296,7 +290,7 @@ def fetch_adjusted_close(df):
                 interval="1d",
                 auto_adjust=True,
                 threads=False,
-                session=session,
+                session=curl_session.session,
                 progress=False
             )
 
@@ -320,11 +314,23 @@ def fetch_adjusted_close(df):
 
         #Safety delay between batches
         time.sleep(random.uniform(2.0,4.0))
+
+
+    if ticker_results:
+        ticker_prices_df= pd.concat(ticker_results, axis=1)
+        ticker_prices_df= ticker_prices_df.sort_index()
+
+        logger.info(f"\n== COMPLETED! {ticker_prices_df.shape[1]}")
+    else:
+        logger.info("No data was downloaded")
     
     logger.info("\n Donwload Completed")
     logger.info(f" Successful batches: {len(ticker_results)}/30")
+
+    if failed_batches:
+        logger.info(f" Failed batches: {failed_batches}")
     
-    return ticker_results
+    return ticker_prices_df
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
@@ -356,11 +362,8 @@ if __name__ == "__main__":
     candidate_days=recent_two_trading_days()
     batches=generate_batches(tickers)
     ticker_prices=fetch_adjusted_close(batches)
-    print(tickers.info)
-    print(valid_days)
-    print(candidate_days)
-    print(batches)
     print(ticker_prices)
+    
 
 
     
