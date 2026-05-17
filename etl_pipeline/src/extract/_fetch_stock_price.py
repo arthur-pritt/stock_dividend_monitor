@@ -165,8 +165,9 @@ def recent_two_trading_days():
         curr_date=curr_date - pd.Timedelta(days=1)
 
     logger.info(f"Recent valid two trading days: {valid_dates}")
-    
-    return valid_dates
+
+    #Extracting the date Timestamps before returning
+    return [entry['date'] for entry in valid_dates]
 
 
 def validate_tickers(df):
