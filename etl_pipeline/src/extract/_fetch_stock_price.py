@@ -352,6 +352,8 @@ def clean_ticker_prices(df):
     # 3. Select and rename columns cleanly
     final_df = df[['Date', 'Ticker', 'Adj_Close']].copy()
     final_df.columns = ['date', 'ticker', 'adj_close']   # Consistent lowercase
+    final_df['year'] = final_df['date'].dt.year
+    final_df['month'] = final_df['date'].dt.month
 
     # 4. Final validation and summary
     print("\n=== Cleaning Summary ===")
@@ -369,6 +371,41 @@ def clean_ticker_prices(df):
     print("\nData cleaning completed successfully!")
     
     return final_df
+
+def validating_clean_tickers(clean_df):
+    """Validating the output from the clean ticker price function."""
+
+    #Confirm it is not none
+    if clean_df is None:
+        raise ValueError("No data to validate")
+    
+    #Confirm it is a pandas dataframe
+    if not isinstance(clean_df, pd.DataFrame):
+        raise TypeError(f"Expected pandas dataframe got {type(clean_df).__name__}")
+    
+    #Confirm if the the dataframe is empty
+
+    if clean_df.empty:
+        raise ValueError(f" The dataframe has no values. It's empty")
+    
+    #Confirm the minimum number of rows to be 400
+
+    if clean_df.shape[0]<500:
+        raise ValueError(f" The dataframe has less than 400 rows which rep 100 tikers. got: {clean_df.shape[0]}")
+    
+    #confirm the required columns
+    required_cols=['ticker','date','adj_close']
+    missing_col= []
+    for col in required_cols:
+        if col not in clean_df.columns:
+            missing_col.append(col)
+
+    if missing_col:
+        raise ValueError(f"Missing columns are {missing_col}")
+    
+    logger.info(f"VALIDATION OF TICKER ADJUST CLOSE COMPLETED")
+
+    return clean_df
     
 
 if __name__ == "__main__":
@@ -402,7 +439,8 @@ if __name__ == "__main__":
     batches=generate_batches(tickers)
     ticker_prices=fetch_adjusted_close(batches)
     clean_prices=clean_ticker_prices(ticker_prices)
-    print(clean_prices)
+    validated_tickers=validating_clean_tickers(clean_prices)
+    print(validated_tickers)
     
     
     

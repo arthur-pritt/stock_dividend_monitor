@@ -7,7 +7,6 @@ import random
 from itertools import islice
 
 
-
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA
 #importing config files
 from config.logging_config import get_logger
@@ -327,7 +326,7 @@ if __name__ == "__main__":
     from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
 
     setup_logging()
-    logger.info("Testing validate_tickers...")
+    logger.info("Starting to collect Historical Prices...")
 
     # Extract + prep
     df = load_nasdaq_data()

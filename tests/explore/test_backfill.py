@@ -1,10 +1,8 @@
 import pandas as pd 
 import unittest
-import pytest
 import pandera.pandas as pa
 from pandera.errors import SchemaError
 from unittest.mock import patch, Mock, call
-from pandera import Column,check,DataFrameSchema
 
 #importing modules
 from etl_pipeline.src.extract._backfill import validate_tickers,validate_data_out,clean_and_validate, audit_raw_data
