@@ -163,7 +163,7 @@ def recent_two_trading_days():
         
         curr_date=curr_date - pd.Timedelta(days=1)
 
-    logger.info(f"Recent valid two trading days: {valid_dates}")
+    #logger.info(f"Recent valid two trading days: {valid_dates}")
 
     #Extracting the date Timestamps before returning
     return [entry['date'] for entry in valid_dates]
@@ -265,13 +265,13 @@ def fetch_adjusted_close(df):
     )
 
     #Store tickers from all batches
-    ticker_results= {}
+    ticker_results= []
     failed_batches=[]
 
     logger.info("Starting download for 30 batches...\n")
 
     for batch_number, tickers in enumerate(df, start=1):
-        logger.info(f"Processing Batch {batch_number}/30 | Tickers:{len(tickers)}")
+        #logger.info(f"Processing Batch {batch_number}/30 | Tickers:{len(tickers)}")
         
 
         try:
@@ -297,11 +297,11 @@ def fetch_adjusted_close(df):
             #Extract Adjusted Close
 
             if not data.empty:
-                adj_close = data['Close']
-                adj_close=adj_close.iloc[-2:]
-
-                #Store results
-                ticker_results[batch_number]=adj_close
+                batch_long = data['Close'].stack().reset_index()
+                batch_long.columns= ['Date', 'Ticker', 'Adj_Close']
+                
+                # Store the result
+                ticker_results.append(batch_long)
 
                 logger.info(f" Batch {batch_number} succesful")
 
@@ -317,8 +317,8 @@ def fetch_adjusted_close(df):
 
 
     if ticker_results:
-        ticker_prices_df= pd.concat(ticker_results, axis=1)
-        ticker_prices_df= ticker_prices_df.sort_index()
+        ticker_prices_df= pd.concat(ticker_results, axis=0, ignore_index=True)
+        ticker_prices_df= ticker_prices_df.sort_values(['Date','Ticker']).reset_index(drop=True)
 
         logger.info(f"\n== COMPLETED! {ticker_prices_df.shape[1]}")
     else:
@@ -331,6 +331,45 @@ def fetch_adjusted_close(df):
         logger.info(f" Failed batches: {failed_batches}")
     
     return ticker_prices_df
+
+def clean_ticker_prices(df):
+    """
+    Final cleaned version - Produces clean long-format data.
+    Output columns: date, ticker, adj_close
+    """
+    if df is None or df.empty:
+        raise ValueError("No data to clean. DataFrame is empty or None.")
+
+    print("=== Starting Final Data Cleaning ===")
+    print("Original shape:", df.shape)
+
+    # 1. Convert Date to datetime
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    # 2. Sort the data properly
+    df = df.sort_values(['Date', 'Ticker']).reset_index(drop=True)
+
+    # 3. Select and rename columns cleanly
+    final_df = df[['Date', 'Ticker', 'Adj_Close']].copy()
+    final_df.columns = ['date', 'ticker', 'adj_close']   # Consistent lowercase
+
+    # 4. Final validation and summary
+    print("\n=== Cleaning Summary ===")
+    print("Final Shape          :", final_df.shape)
+    print("Unique Tickers       :", final_df['ticker'].nunique())
+    print("Date Range           :", final_df['date'].min(), "→", final_df['date'].max())
+    print("Total NaNs           :", final_df.isnull().sum().sum())
+    
+    print("\nNumeric Summary (Adj_Close):")
+    print(final_df['adj_close'].describe())
+
+    print("\nFirst 5 rows of cleaned data:")
+    print(final_df.head())
+
+    print("\nData cleaning completed successfully!")
+    
+    return final_df
+    
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
@@ -362,7 +401,16 @@ if __name__ == "__main__":
     candidate_days=recent_two_trading_days()
     batches=generate_batches(tickers)
     ticker_prices=fetch_adjusted_close(batches)
-    print(ticker_prices)
+    clean_prices=clean_ticker_prices(ticker_prices)
+    print(clean_prices)
+    
+    
+    
+    
+
+    
+
+
     
 
 
