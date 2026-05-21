@@ -318,7 +318,7 @@ def validate_data_out(df):
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
-    from etl_pipeline.src.extract._clean_nasdaq_data import (
+    from etl_pipeline.src.extract._clean_nasdaq_list import (
         validateInData, extract_columns, normalize_names,
         build_master_list, match_and_categorize,
         get_top_300, validate_top_300, pre_validate_with_yahoo

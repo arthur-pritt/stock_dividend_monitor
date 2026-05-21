@@ -6,7 +6,7 @@ from pandera import Column, Check, DataFrameSchema
 from pandera.errors import SchemaError
 
 #Importing the module
-from etl_pipeline.src.extract._clean_nasdaq_data import validateInData,normalize_names,pre_validate_with_yahoo
+from etl_pipeline.src.extract._clean_nasdaq_list import validateInData,normalize_names,pre_validate_with_yahoo
 from config.settings import DATA_COLS, INTERNAL_COLS
 
 class TestValidateInData(unittest.TestCase):
@@ -74,7 +74,7 @@ class TestNameNormalization(unittest.TestCase):
 class TestTop300Logic(unittest.TestCase):
     def test_market_cap_aggregation(self):
         """Test that we take the MAX market cap for duplicate companies."""
-        from etl_pipeline.src.extract._clean_nasdaq_data import get_top_300
+        from etl_pipeline.src.extract._clean_nasdaq_list import get_top_300
         from config.settings import LABELS,DATA_COLS # Import the actual label
         
         # Arrange: Two entries for 'Google' with different caps
