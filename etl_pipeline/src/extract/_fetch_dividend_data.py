@@ -4,7 +4,7 @@ import time
 import pandera.pandas as pa
 import pandas_market_calendars as mcal
 from itertools import islice 
-from datetime import timedelta 
+from datetime import date
 
 
 from config.logging_config import get_logger
@@ -68,6 +68,58 @@ def validate_dividend_tickers(df):
 
     return validate_df
 
+def get_current_quarter(last_quarter=None):
+    """
+    A function that takes today's date, determines which quarter it falls into, and returns the quarter and the year.
+    What quarter does today fall into? If current quarter is too early, use the reference point. If current quarter is ready, return it for fetching.
+    """
+
+    #Getting the current date, year, and month
+    current_date = date.today()
+
+    quarter = (current_date.month//3) + 1
+
+    year = current_date.year
+
+    quarter_year=[quarter, year]
+
+    current_quarter=quarter_year[0]
+    current_year=quarter_year[1]
+    
+    #Determining the quarter
+    if last_quarter is None:
+        return quarter_year 
+    
+    if current_year < last_quarter[1]:
+        raise ValueError(f" This is anomaly. Current year can't be less than the last year.")
+    
+    if current_year > last_quarter[1]:
+        return quarter_year 
+    
+    if current_year == last_quarter[1]:
+        if last_quarter[0] > current_quarter:
+            raise ValueError(f" This is anomaly. Last quarter can't be greater than the current quarter")
+        elif current_quarter > last_quarter[0]:
+            return quarter_year 
+        else:
+            return last_quarter
+        
+    
+
+def get_latest_dividend_declarations():
+    """
+    company = Company("AAPL")
+
+    get financials
+    financials = company.get_financial()
+    financials.income_statement()
+
+    or facts
+    xbrl= company.latest_filing(form="10-k").xbrl()
+    div_facts =xbrl.factx.filter(concept= "CommonStockDividendPerShare)
+    """
+    pass
+
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
@@ -99,6 +151,7 @@ if __name__ == "__main__":
     #Fetch dividend per share prices  + Process
     tickers = validate_top_300(top_300)
     validated_tickers = validate_dividend_tickers(tickers)
-    print(validated_tickers)
+    quarters=get_current_quarter(None)
+    print(quarters)
     
 
