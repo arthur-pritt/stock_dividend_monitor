@@ -5,6 +5,7 @@ import pandera.pandas as pa
 import pandas_market_calendars as mcal
 from itertools import islice 
 from datetime import date
+from calendar import monthrange
 
 
 from config.logging_config import get_logger
@@ -75,20 +76,29 @@ def get_current_quarter(last_quarter=None):
     """
 
     #Getting the current date, year, and month
+
     current_date = date.today()
-
     quarter = (current_date.month//3) + 1
-
     year = current_date.year
 
-    quarter_year=[quarter, year]
+    quarter_year=[quarter,year]
 
     current_quarter=quarter_year[0]
     current_year=quarter_year[1]
+
+    #conversions
+    end_month=current_quarter*3
+    _, last_day=monthrange(year,end_month)
+    start_month=(current_quarter*3)-2
+    start_day= 1
+    start_date=date(year,start_month,start_day)
+    end_date=date(year,end_month, last_day)
+    quarter_year=[start_date, end_date]
+
     
     #Determining the quarter
     if last_quarter is None:
-        return quarter_year 
+        return  quarter_year
     
     if current_year < last_quarter[1]:
         raise ValueError(f" This is anomaly. Current year can't be less than the last year.")
@@ -104,6 +114,8 @@ def get_current_quarter(last_quarter=None):
         else:
             return last_quarter
         
+    
+    
     
 
 def get_latest_dividend_declarations():
