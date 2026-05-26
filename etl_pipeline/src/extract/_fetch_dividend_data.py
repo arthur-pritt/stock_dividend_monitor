@@ -6,6 +6,8 @@ import pandas_market_calendars as mcal
 from itertools import islice 
 from datetime import date
 from calendar import monthrange
+from edgar import Company
+from edgar import set_identity
 
 
 from config.logging_config import get_logger
@@ -13,6 +15,8 @@ from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
 from config.settings import DATA_COLS
 
 logger = get_logger(__name__)
+set_identity("Arthur Ndubi arthurndubi5@gmail.com")
+
 
 def validate_dividend_tickers(df):
     """Validating the inputs of 300 tickers and comfirming the data is 
@@ -81,10 +85,8 @@ def get_current_quarter(last_quarter=None):
     quarter = (current_date.month//3) + 1
     year = current_date.year
 
-    quarter_year=[quarter,year]
-
-    current_quarter=quarter_year[0]
-    current_year=quarter_year[1]
+    current_quarter=quarter
+    current_year=year
 
     #conversions
     end_month=current_quarter*3
@@ -112,11 +114,92 @@ def get_current_quarter(last_quarter=None):
         elif current_quarter > last_quarter[0]:
             return quarter_year 
         else:
-            return last_quarter
+            the_quarter=last_quarter[0]
+            the_year=last_quarter[1]
+            the_end_month=the_quarter*3
+            _, the_last_day=monthrange(the_year,the_end_month)
+            the_start_month=(the_quarter*3)-2
+            the_start_day= 1
+            the_start_date=date(the_year,the_start_month,the_start_day)
+            the_end_date=date(the_year, the_end_month,the_last_day)
+
+            previous_period=[the_start_date,the_end_date]
+
+            return previous_period
         
+def generate_cik_batches(df):
+    """
+    Map each ticker to its respective CIK, generate CIK in batches of 10
+    and return ticker and CIK as output."""
+
+    #Validating incoming data
+
+    if df is None: 
+        raise ValueError(f" No data provided to generate_cik_batches function")
     
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f" Expected a pandas dataframe. Got {type(df).__name__}")
     
+    if df.empty:
+        raise ValueError(f" The dataframe is empty.")
     
+    #Preping the tickers
+
+    try:
+        tickers=(
+            df[DATA_COLS['ticker']]
+            .astype(str)
+            .str.strip()
+            .unique()
+            .tolist()
+        )
+    except KeyError:
+        logger.error(f"Column {DATA_COLS['ticker']} not found in the database")
+        raise
+    
+    except Exception as e:
+        logger.error(f"Unexpected error preparing tickers: {e}")
+        raise
+    
+    if not tickers:
+        raise ValueError(f"No ticker found during processing")
+    #Mapping the each ticker to its  respective CIK(Central Index Key)
+
+    tickers_cik=[]
+    for ticker in tickers:
+        try:
+            company=Company(ticker)
+            tickers_cik.append({
+                'ticker' : ticker,
+                'cik'  : company.cik
+            })
+        except Exception as e:
+            logger.error(f" Error with {ticker} : {e}")
+
+    #Confirming the number of tickers_cik
+
+    if len(tickers_cik) < 100:
+        raise ValueError(f"Expected at least 100 tickers. Got {len(tickers_cik)} out of {len(tickers)}. Failed:{len(tickers)-len(tickers_cik)}")
+    
+
+    #Generate batches of 10 tickers per batch function
+
+    def ticker_batches(tickers, batch_size=10):
+        tickers = iter(tickers)
+        while True:
+            batch=list(islice(tickers,batch_size))
+            if not batch:
+                break
+            yield batch 
+    
+    tickers_cik_batches= []
+    for i, batch in enumerate(ticker_batches(tickers_cik,10),1):
+        tickers_cik_batches.append(batch)
+        logger.info(f"Generated Ticcker CIK Batch === {i:2d} | Size: {len(batch)}")
+
+    logger.info(f"COMPLETED: Generate {len(tickers_cik_batches)} batches")
+
+    return tickers_cik_batches
 
 def get_latest_dividend_declarations():
     """
@@ -163,7 +246,9 @@ if __name__ == "__main__":
     #Fetch dividend per share prices  + Process
     tickers = validate_top_300(top_300)
     validated_tickers = validate_dividend_tickers(tickers)
-    quarters=get_current_quarter(None)
-    print(quarters)
+    cik_batches=generate_cik_batches(validated_tickers)
+    print(cik_batches)
+    
+    
     
 
