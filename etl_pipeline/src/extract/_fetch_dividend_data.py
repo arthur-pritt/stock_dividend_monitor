@@ -8,6 +8,8 @@ from datetime import date
 from calendar import monthrange
 from edgar import Company
 from edgar import set_identity
+import os
+from dotenv import load_dotenv
 
 
 from config.logging_config import get_logger
@@ -15,7 +17,9 @@ from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
 from config.settings import DATA_COLS
 
 logger = get_logger(__name__)
-set_identity("Arthur Ndubi arthurndubi5@gmail.com")
+load_dotenv()
+set_identity(os.environ.get("EDGAR_IDENTITY"))
+
 
 
 def validate_dividend_tickers(df):
@@ -181,7 +185,6 @@ def generate_cik_batches(df):
     if len(tickers_cik) < 100:
         raise ValueError(f"Expected at least 100 tickers. Got {len(tickers_cik)} out of {len(tickers)}. Failed:{len(tickers)-len(tickers_cik)}")
     
-
     #Generate batches of 10 tickers per batch function
 
     def ticker_batches(tickers, batch_size=10):
