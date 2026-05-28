@@ -219,20 +219,62 @@ def retry(times=3):
                     time.sleep(2 ** attempt)
         return wrapper
     return decorator
-
-def get_latest_dividend_declarations():
+@retry(times=3)
+def get_latest_dividend_declarations(batch, date_range):
     """
-    company = Company("AAPL")
-
-    get financials
-    financials = company.get_financial()
-    financials.income_statement()
-
-    or facts
-    xbrl= company.latest_filing(form="10-k").xbrl()
-    div_facts =xbrl.factx.filter(concept= "CommonStockDividendPerShare)
     """
-    pass
+    successful_tickers = []
+    failed_tickers =[]
+    target_tag="us-gaap:CommonStockDividendsPerShareDeclared"
+
+    for batch_number, item in enumerate(batch, start=1):
+        ticker = item['ticker']
+        cik = item['cik']
+        start_date=date_range[0]
+        end_date=date_range[1]
+        try:
+            company = Company(cik)
+            filing = company.get_filings(form="10-Q")[0]
+            xbrl=filing.xbrl()
+            company_df=(xbrl.query()
+                        .by_statement_type("StatementOfEquity")
+                        .by_concept(target_tag)
+                        .by_dimension(None)
+                        .by_per
+                        .to_dataframe('value','period_start','period_end','fiscal_period','fiscal_year'))
+            #converting fiscal dates to calendar dates
+            company_df = company_df[(company_df['period_start'] >= start_date) &(company_df['period_end'] <= end_date)]
+            #Renaming columns
+            company_df['ticker'] = ticker
+            company_df['cik'] = cik
+            company_df['quarter'] = company_df['period_start'].apply(lambda x: (x.month // 3) + 1)
+            company_df['year'] = company_df['period_start'].apply(lambda x: x.year)
+            company_df['dividend_per_share'] = company_df['value']
+            company_df = company_df[['ticker', 'cik', 'dividend_per_share', 'quarter', 'year']]
+            successful_tickers.append(company_df)
+            logger.info(f" Batch {batch_number} succesful")
+        except Exception as e:
+            logger.info(f" Batch {batch_number} failed: {e}")
+            failed_tickers.append(batch_number)
+        
+        #Safety delay between batches
+        time.sleep(random.uniform(2.0,4.0))
+
+        if successful_tickers:
+            successful_tickers= pd.concat(successful_tickers, axis=0, ignore_index=True)
+            #successful_tickers= successful_tickers_df.sort_values(['ticker','cik']).reset_index(drop=True)
+            logger.info(f"\n== COMPLETED! {successful_tickers_df.shape[1]}")
+
+        else:
+            logger.info("No data was downloaded")
+        
+        logger.info("\n Donwload Completed")
+        logger.info(f" Successful batches: {len(successful_tickers)}/30")
+
+        if failed_tickers:
+            logger.info(f" Failed batches: {failed_tickers}")
+        
+        return successful_tickers
 
 
 if __name__ == "__main__":
@@ -265,8 +307,10 @@ if __name__ == "__main__":
     #Fetch dividend per share prices  + Process
     tickers = validate_top_300(top_300)
     validated_tickers = validate_dividend_tickers(tickers)
+    date_range=get_current_quarter(last_quarter=None)
     cik_batches=generate_cik_batches(validated_tickers)
-    print(cik_batches)
+    dividend_data=get_latest_dividend_declarations(cik_batches,date_range)
+    print(dividend_data)
     
     
     
