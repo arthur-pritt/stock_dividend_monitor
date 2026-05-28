@@ -12,9 +12,12 @@ import os
 from dotenv import load_dotenv
 
 
+
 from config.logging_config import get_logger
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
 from config.settings import DATA_COLS
+from etl_pipeline.src.extract._standardization_setup import build_standardization_context
+
 
 logger = get_logger(__name__)
 load_dotenv()
@@ -203,6 +206,19 @@ def generate_cik_batches(df):
     logger.info(f"COMPLETED: Generate {len(tickers_cik_batches)} batches")
 
     return tickers_cik_batches
+
+def retry(times=3):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(times):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == times - 1:
+                        raise 
+                    time.sleep(2 ** attempt)
+        return wrapper
+    return decorator
 
 def get_latest_dividend_declarations():
     """
