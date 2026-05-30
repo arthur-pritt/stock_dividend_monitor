@@ -89,7 +89,7 @@ def get_current_quarter(last_quarter=None):
     #Getting the current date, year, and month
 
     current_date = date.today()
-    quarter = (current_date.month//3) + 1
+    quarter = (current_date.month - 1 )//3 + 1
     year = current_date.year
 
     current_quarter=quarter
@@ -119,7 +119,22 @@ def get_current_quarter(last_quarter=None):
         if last_quarter[0] > current_quarter:
             raise ValueError(f" This is anomaly. Last quarter can't be greater than the current quarter")
         elif current_quarter > last_quarter[0]:
-            return quarter_year 
+            #If fillings are not yet available, wait for 14 days
+            wait_time=current_date-start_date
+            wait_time=wait_time.days 
+            the_previous_quarter=last_quarter[0]
+            the_same_year=last_quarter[1]
+            the_end_monthofthe_quarter=the_previous_quarter*3
+            _,the_last_dayofthe_quarter=monthrange(the_same_year,the_end_monthofthe_quarter)
+            the_start_monthofthe_quarter=(the_previous_quarter*3)-2
+            the_start_dayofthe_quarter= 1
+            the_start_dateofthe_quarter=date(the_same_year,the_start_monthofthe_quarter, the_start_dayofthe_quarter)
+            the_end_dateofthe_quarter=date(the_same_year,the_end_monthofthe_quarter,the_last_dayofthe_quarter)
+            the_previous_quarter_period=[the_start_dateofthe_quarter,the_end_dateofthe_quarter]   
+            if wait_time < 14:
+                return the_previous_quarter_period
+            else:
+                return quarter_year
         else:
             the_quarter=last_quarter[0]
             the_year=last_quarter[1]
@@ -225,56 +240,90 @@ def get_latest_dividend_declarations(batch, date_range):
     """
     successful_tickers = []
     failed_tickers =[]
-    target_tag="us-gaap:CommonStockDividendsPerShareDeclared"
+    target_tag = "us-gaap:CommonStockDividendsPerShareDeclared"
+    start_date=pd.Timestamp(date_range[0])
+    end_date=pd.Timestamp(date_range[1])
 
-    for batch_number, item in enumerate(batch, start=1):
-        ticker = item['ticker']
-        cik = item['cik']
-        start_date=date_range[0]
-        end_date=date_range[1]
-        try:
-            company = Company(cik)
-            filing = company.get_filings(form="10-Q")[0]
-            xbrl=filing.xbrl()
-            company_df=(xbrl.query()
-                        .by_statement_type("StatementOfEquity")
-                        .by_concept(target_tag)
-                        .by_dimension(None)
-                        .by_per
-                        .to_dataframe('value','period_start','period_end','fiscal_period','fiscal_year'))
-            #converting fiscal dates to calendar dates
-            company_df = company_df[(company_df['period_start'] >= start_date) &(company_df['period_end'] <= end_date)]
-            #Renaming columns
-            company_df['ticker'] = ticker
-            company_df['cik'] = cik
-            company_df['quarter'] = company_df['period_start'].apply(lambda x: (x.month // 3) + 1)
-            company_df['year'] = company_df['period_start'].apply(lambda x: x.year)
-            company_df['dividend_per_share'] = company_df['value']
-            company_df = company_df[['ticker', 'cik', 'dividend_per_share', 'quarter', 'year']]
-            successful_tickers.append(company_df)
-            logger.info(f" Batch {batch_number} succesful")
-        except Exception as e:
-            logger.info(f" Batch {batch_number} failed: {e}")
-            failed_tickers.append(batch_number)
+    for batch_number, batch_item in enumerate(batch, start=1):
         
-        #Safety delay between batches
-        time.sleep(random.uniform(2.0,4.0))
 
-        if successful_tickers:
-            successful_tickers= pd.concat(successful_tickers, axis=0, ignore_index=True)
-            #successful_tickers= successful_tickers_df.sort_values(['ticker','cik']).reset_index(drop=True)
-            logger.info(f"\n== COMPLETED! {successful_tickers_df.shape[1]}")
+        for item in batch_item:
+            ticker = item['ticker']
+            cik = item['cik']
+            
+            try:
+                #Creating the company object
+                company = Company(cik)
+                filing = company.get_filings(form="10-Q")[0]
+                xbrl=filing.xbrl()
+                
+                # Get all facts
+                all_facts = xbrl.query().to_dataframe()
 
-        else:
-            logger.info("No data was downloaded")
+                # Filter by concept using pandas
+                company_df = all_facts[
+                    all_facts['concept'] == target_tag
+                    ][['value', 'period_start', 'period_end']]
+                
+                # Keep only most recent declaration
+                company_df = company_df.sort_values('period_end', ascending=False).head(1)
+
+                # For companies that don't declare dividend will have 0.0 as their value
+                if company_df.empty:
+                    company_df= pd.DataFrame([{
+                        'ticker': ticker,
+                        'cik':cik,
+                        'dividend_per_share': 0.0,
+                        'quarter':(start_date.month - 1 )//3+1,
+                        'year':start_date.year
+                    }])
+                    successful_tickers.append(company_df)
+                    continue
+                
+                #Converting to pandas date
+                company_df['period_start']= pd.to_datetime(company_df['period_start'])
+                company_df['period_end']= pd.to_datetime(company_df['period_end'])
+
+                #Renaming columns
+                company_df['ticker'] = ticker
+                company_df['cik'] = cik
+                company_df['quarter'] = company_df['period_end'].apply(lambda x: (x.month - 1 )// 3 + 1)
+                company_df['year'] = company_df['period_end'].apply(lambda x: x.year)
+                company_df['dividend_per_share'] = company_df['value']
+                company_df = company_df[['ticker', 'cik', 'dividend_per_share', 'quarter', 'year']]
+
+
+                #Appending/storing columns to successful_tickers dataframe
+                successful_tickers.append(company_df)
+
+
+                #Safety delay between batches
+                time.sleep(random.uniform(2.0,4.0))
+
+            except Exception as e:
+                logger.info(f" Batch {batch_number} failed: {e}")
+                failed_tickers.append({
+                    'ticker': ticker,
+                    'reason' :str(e)
+                    })
+        logger.info(f"Batch {batch_number} successful")
+                
+
+    if successful_tickers:
+        successful_tickers= pd.concat(successful_tickers, axis=0, ignore_index=True)
+        #successful_tickers= successful_tickers.sort_values(['ticker','cik']).reset_index(drop=True)
+        logger.info(f"\n== COMPLETED! {successful_tickers.shape[0]}")
+
+    else:
+        logger.info("No data was downloaded")
         
-        logger.info("\n Donwload Completed")
-        logger.info(f" Successful batches: {len(successful_tickers)}/30")
+    logger.info(f"\n DOWNLOAD COMPLETED")    
+    logger.info(f" Successful batches: {len(successful_tickers)}/30")
 
-        if failed_tickers:
-            logger.info(f" Failed batches: {failed_tickers}")
+    if failed_tickers:
+        logger.info(f" Failed batches: {failed_tickers}")
         
-        return successful_tickers
+    return successful_tickers
 
 
 if __name__ == "__main__":
@@ -307,10 +356,11 @@ if __name__ == "__main__":
     #Fetch dividend per share prices  + Process
     tickers = validate_top_300(top_300)
     validated_tickers = validate_dividend_tickers(tickers)
-    date_range=get_current_quarter(last_quarter=None)
+    date_range=get_current_quarter(last_quarter=[1,2026])
     cik_batches=generate_cik_batches(validated_tickers)
     dividend_data=get_latest_dividend_declarations(cik_batches,date_range)
     print(dividend_data)
+    print(f"date_range: {date_range}")
     
     
     
