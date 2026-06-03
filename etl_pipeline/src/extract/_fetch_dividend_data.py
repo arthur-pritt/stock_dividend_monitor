@@ -25,7 +25,7 @@ set_identity(os.environ.get("EDGAR_IDENTITY"))
 
 
 
-def validate_dividend_tickers(df):
+def validate_incoming_tickers(df):
     """Validating the inputs of 300 tickers and comfirming the data is 
     OK."""
 
@@ -222,19 +222,6 @@ def generate_cik_batches(df):
 
     return tickers_cik_batches
 
-def retry(times=3):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            for attempt in range(times):
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    if attempt == times - 1:
-                        raise 
-                    time.sleep(2 ** attempt)
-        return wrapper
-    return decorator
-@retry(times=3)
 def get_latest_dividend_declarations(batch, date_range):
     """
     """
@@ -254,7 +241,19 @@ def get_latest_dividend_declarations(batch, date_range):
             try:
                 #Creating the company object
                 company = Company(cik)
-                filing = company.get_filings(form="10-Q")[0]
+                filing = company.get_filings(form="10-Q")
+                if not filing:
+                    # treat as no dividend data
+                    # store 0.0 and continue
+                    successful_tickers.append(pd.DataFrame([{
+                        'ticker' : ticker,
+                        'cik' : cik,
+                        'dividend_per_share' : 0.0,
+                        'quarter':(start_date.month - 1)//3 + 1,
+                        'year' : start_date.year
+                    }]))
+                    continue
+                filing = filing[0]
                 xbrl=filing.xbrl()
                 
                 # Get all facts
@@ -311,6 +310,7 @@ def get_latest_dividend_declarations(batch, date_range):
 
     if successful_tickers:
         successful_tickers= pd.concat(successful_tickers, axis=0, ignore_index=True)
+        successful_tickers['dividend_per_share'] = successful_tickers['dividend_per_share'].astype(float)
         #successful_tickers= successful_tickers.sort_values(['ticker','cik']).reset_index(drop=True)
         logger.info(f"\n== COMPLETED! {successful_tickers.shape[0]}")
 
@@ -318,13 +318,46 @@ def get_latest_dividend_declarations(batch, date_range):
         logger.info("No data was downloaded")
         
     logger.info(f"\n DOWNLOAD COMPLETED")    
-    logger.info(f" Successful batches: {len(successful_tickers)}/30")
+    logger.info(f" Successful batches: {successful_tickers.shape[0]}/300")
 
     if failed_tickers:
         logger.info(f" Failed batches: {failed_tickers}")
         
     return successful_tickers
 
+def validate_dividend_tickers(dividend_df):
+    """
+    Validate the output from the get latest dividend declarations."""
+    #confirm it it is none.
+    if dividend_df is None:
+        raise ValueError("No data to validate")
+    
+    #confirm it is a pandas dataframe
+    if not isinstance(dividend_df, pd.DataFrame):
+        raise TypeError(f" Expected pandas dataframe got {type(df).__name__}")
+    
+    #confirm the dataframe is empty
+    if dividend_df.empty:
+        raise ValueError(f" The dataframe is empty")
+    
+    #confirm the minimum number of rows to be 400
+
+    if dividend_df.shape[0]<150:
+        raise ValueError(f" The dataframe has less than 150 rows which represent 10")
+    
+    #Confirm the required columns
+    required_cols=['ticker','date','dividend_per_share']
+    missing_col=[]
+
+    for col in required_cols:
+        if col not in dividend_df.columns:
+            missing_col.append(col)
+
+    if missing_col:
+        raise ValueError(f" Missing columns are {missing_col}")
+    
+    logger.info(f"VALIDATION OF DIVIDEND PER SHARE COMPLETED")
+    return dividend_df
 
 if __name__ == "__main__":
     from config.logging_config import setup_logging
@@ -354,13 +387,13 @@ if __name__ == "__main__":
     top_300 = validate_top_300(top_300)
 
     #Fetch dividend per share prices  + Process
-    tickers = validate_top_300(top_300)
-    validated_tickers = validate_dividend_tickers(tickers)
+    validated_tickers = validate_incoming_tickers(top_300)
     date_range=get_current_quarter(last_quarter=[1,2026])
     cik_batches=generate_cik_batches(validated_tickers)
     dividend_data=get_latest_dividend_declarations(cik_batches,date_range)
-    print(dividend_data)
-    print(f"date_range: {date_range}")
+    dividend_df=validate_dividend_tickers(dividend_data)
+    print(dividend_df)
+
     
     
     
