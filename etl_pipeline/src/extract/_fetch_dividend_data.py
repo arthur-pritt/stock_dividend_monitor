@@ -346,7 +346,7 @@ def validate_dividend_tickers(dividend_df):
         raise ValueError(f" The dataframe has less than 150 rows which represent 10")
     
     #Confirm the required columns
-    required_cols=['ticker','date','dividend_per_share']
+    required_cols=['ticker','quarter','dividend_per_share']
     missing_col=[]
 
     for col in required_cols:
@@ -392,6 +392,7 @@ if __name__ == "__main__":
     cik_batches=generate_cik_batches(validated_tickers)
     dividend_data=get_latest_dividend_declarations(cik_batches,date_range)
     dividend_df=validate_dividend_tickers(dividend_data)
+    print(dividend_data)
     print(dividend_df)
 
     

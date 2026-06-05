@@ -390,7 +390,7 @@ def validating_clean_tickers(clean_df):
     
     #Confirm the minimum number of rows to be 400
 
-    if clean_df.shape[0]<500:
+    if clean_df.shape[0]<400:
         raise ValueError(f" The dataframe has less than 400 rows which rep 100 tikers. got: {clean_df.shape[0]}")
     
     #confirm the required columns

@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from edgar.xbrl.standardization import(
     get_default_mapper,
     get_default_store,
-    StandardConcept,
     StandardizationCache
     
 )
@@ -10,6 +9,8 @@ from edgar.xbrl.standardization import(
 @dataclass
 
 class StandardizationContext:
+    """
+    Container for edgartools standardization objects."""
     mapper : object 
     store : object
     cache : object
