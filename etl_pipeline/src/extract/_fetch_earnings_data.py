@@ -71,6 +71,75 @@ def valicate_incoming_tickers(df):
     logger.info(f"Final validated dataset: {len(validate_df)} rows after dropping Nans")
     return validate_df
 
+def get_current_quarter(last_quarter=None):
+    """
+    A function that takes today's date, determines which quarter it falls into, and returns the quarter and the year.
+    What quarter does today fall into? If current quarter is too early, use the reference point. If current quarter is ready, return it for fetching."""
+
+    #Getting the current date, year, and month
+    current_date= date.today()
+    quarter = (current_date.month - 1)//3 + 1
+    year = current_date.year 
+
+    current_quarter=quarter
+    current_year=year 
+
+    #Conversions
+    end_month = current_quarter *3
+    _, last_day=monthrange(year, end_month)
+    start_month=(current_quarter*3)-2
+    start_day= 1
+    start_date= date(year, start_month, start_day)
+    end_date= date(year, end_month, last_day)
+    quarter_year=[start_date, end_date]
+
+    #Determining the quarter
+    if last_quarter is None:
+        return quarter_year 
+    
+    if current_year < last_quarter[1]:
+        raise ValueError(f" This is anomaly. Current year can't be less than the last year")
+    
+    if current_year > last_quarter[1]:
+        return quarter_year 
+    
+    if current_year == last_quarter[1]:
+        if last_quarter[0] > current_quarter:
+            raise ValueError(f" This is anomaly. Last quarter can't be greater  than the current quarter.")
+        elif current_quarter > last_quarter[0]:
+            #If fillings are not yet available, wait for 14 days.
+            wait_time= current_date-start_date 
+            wait_time= wait_time.days 
+            the_previous_quarter=last_quarter[0]
+            the_same_year= last_quarter[1]
+            the_end_monthofthe_quarter=the_previous_quarter*3
+            _, the_last_day0fthe_quarter=monthrange(the_same_year, the_end_monthofthe_quarter)
+            the_start_monthofthe_quarter=(the_previous_quarter*3)-2
+            the_start_dayofthe_quarter=1
+            the_start_dateofthe_quarter= date(the_same_year, the_start_monthofthe_quarter, the_start_dayofthe_quarter)
+            the_end_dateofthe_quarter=date(the_same_year, the_end_monthofthe_quarter,the_last_day0fthe_quarter)
+            the_previous_quarter_period=[the_start_dateofthe_quarter, the_end_dateofthe_quarter,]
+
+            if wait_time < 14:
+                return the_previous_quarter_period
+            else:
+                return quarter_year 
+            
+        else:
+            the_quarter= last_quarter[0]
+            the_year=last_quarter[1]
+            the_end_month=the_quarter*3
+            _, the_last_day=monthrange(the_year, the_end_month)
+            the_start_month=(the_quarter*3)-2
+            the_start_day= 1
+            the_start_date=date(the_year, the_start_month, the_start_day)
+            the_end_date= date(the_year, the_end_month, the_last_day)
+
+            previous_period=[the_start_date, the_end_date]
+
+            return previous_period
+
+
 if __name__ == "__main__":
     from config.logging_config import setup_logging
     from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
@@ -101,4 +170,5 @@ if __name__ == "__main__":
 
     #Fetch earning per share prices + Process
     validate_tickers = valicate_incoming_tickers(top_300)
-    print(validate_tickers)
+    date_range=get_current_quarter(last_quarter=[1,2026])
+    print(date_range)
