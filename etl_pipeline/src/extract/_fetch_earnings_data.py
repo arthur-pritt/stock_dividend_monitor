@@ -138,6 +138,77 @@ def get_current_quarter(last_quarter=None):
             previous_period=[the_start_date, the_end_date]
 
             return previous_period
+        
+def generate_cik_batches(df):
+    """"
+    Map each ticker tot its respective CIK, generate CIK in batches of 10 and return ticker and CIK as input.
+    """
+
+    #Validating incoming data
+
+    if df is None:
+        raise ValueError(f" No data provided to generate_cik_batches function")
+    
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected a pandas dataframe. Got {type(df).__name__}")
+    
+    if df.empty:
+        raise ValueError(f" The dataframe is empty.")
+    
+    #Prepring the tickers
+    try:
+        tickers=(
+            df[DATA_COLS['ticker']]
+            .astype(str)
+            .str.strip()
+            .unique()
+            .tolist()
+        )
+
+    except KeyError:
+        logger.error(f"Unexpected error preparing tickers: {e}")
+        raise 
+
+    if not tickers:
+        raise ValueError(f" No ticker found during processing")
+    #Mapping each ticker to its respective CIK(Central Index Key)
+
+    tickers_cik=[]
+    for ticker in tickers:
+        try:
+            company= Company(ticker)
+            tickers_cik.append({
+                'ticker': ticker,
+                'cik': company.cik
+            })
+        except Exception as e:
+            logger.error(f" Error with {ticker} : {e}")
+
+    #Confirming the number of tickers_cik
+
+    if len(tickers_cik) < 100:
+        raise ValueError(f" Expected at least 100 tickers. Got {len(tickers_cik)} out of {len(tickers)}. Failed:{len(tickers_cik)}")
+    
+    #Generate batches of 10 tickers per batch function
+
+    def ticker_batches(tickers, batch_size=10):
+        tickers = iter(tickers)
+        while True:
+            batch= list(islice(tickers, batch_size))
+            if not batch:
+                break 
+            yield batch 
+
+    tickers_cik_batches = []
+    for i, batch in enumerate(ticker_batches(tickers_cik, 10), 1):
+        tickers_cik_batches.append(batch)
+        logger.info(f"Generate Ticker CIK batch === {i:2d} | Size:{len(batch)}")
+    
+    logger.info(f"COMPLETED: Generate {len(tickers_cik_batches)} batches")
+
+    return tickers_cik_batches 
+
+
 
 
 if __name__ == "__main__":
@@ -171,4 +242,5 @@ if __name__ == "__main__":
     #Fetch earning per share prices + Process
     validate_tickers = valicate_incoming_tickers(top_300)
     date_range=get_current_quarter(last_quarter=[1,2026])
-    print(date_range)
+    cik_batches = generate_cik_batches(validate_tickers)
+    print(cik_batches)
