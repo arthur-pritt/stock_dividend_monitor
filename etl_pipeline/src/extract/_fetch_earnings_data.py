@@ -208,6 +208,95 @@ def generate_cik_batches(df):
 
     return tickers_cik_batches 
 
+def get_latest_earnings_data(batch, date_range):
+    """
+    A function that pulls the latest earnings per share from SEC EDGAR tool API and returns ticker, cik, earning_per_share, quarter, and year as output
+    """
+
+    successful_tickers = []
+    failed_tickers =[]
+    target_tag = "us-gaap:EarningsPerShareDiluted"
+    start_date=pd.Timestamp(date_range[0])
+    end_date=pd.Timestamp(date_range[1])
+
+    for batch_number, batch_item in enumerate(batch, start=1):
+        for item in batch_item:
+            ticker = item['ticker']
+            cik = item['cik']
+
+            try:
+                #Creating the company object
+                company = Company(cik)
+                filing = company.get_filings(form="10-Q")
+                if not filing:
+                    #treat as no earning data
+                    # store 0.0 and continue
+                    successful_tickers.append(pd.DataFrame([{
+                        'ticker' : ticker, 
+                        'cik' : cik,
+                        'earnings_pershare_diluted' :0.0,
+                        'quarter' :(start_date.month -1)//3 + 1,
+                        'year' : start_date.year
+                    }]))
+                    continue 
+                filing = filing[0]
+                xbrl= filing.xbrl()
+
+                #Get all the facts
+                all_facts = xbrl.query().to_dataframe()
+
+                #Filter by concept using pandas
+                company_df = all_facts[
+                    all_facts['concept'] == target_tag
+                ][['value', 'period_start', 'period_end']]
+
+                #Keep by concept using pandas
+                company_df = company_df.sort_values('period_end', ascending=False).head(1)
+
+                #Converting to pandas date
+                company_df['period_start']= pd.to_datetime(company_df['period_start'])
+                company_df['period_end'] = pd.to_datetime(company_df['period_end'])
+
+                #Renaming columns
+                company_df['ticker'] = ticker 
+                company_df['cik']= cik 
+                company_df['quarter']=company_df['period_end'].apply(lambda x: (x.month- 1)//3 + 1)
+                company_df['year'] = company_df['period_end'].apply(lambda x: x.year)
+                company_df['earnings_pershare_diluted'] = company_df['value']
+                company_df=company_df[['ticker', 'cik', 'earnings_pershare_diluted', 'quarter', 'year']]
+
+                #Appending/storing columns to successful_tickers dataframe
+                successful_tickers.append(company_df)
+
+                #Safely delay between batches
+                time.sleep(random.uniform(2.0,4.0))
+
+
+            except Exception as e:
+                logger.info(f" Batch {batch_number} failed: {e}")
+                failed_tickers.append({
+                    'ticker':ticker,
+                    'reason' : str(e)
+                })
+        logger.info(f"Batch {batch_number} successful")
+
+    if successful_tickers:
+        successful_tickers = pd.concat(successful_tickers, axis=0, ignore_index=True)
+        successful_tickers['earnings_pershare_diluted']= successful_tickers['earnings_pershare_diluted'].astype(float)
+        logger.info(f"\n=== COMPLETED! {successful_tickers.shape[0]}")
+
+    else:
+        logger.info(f"No data was downloaded")
+
+    logger.info(f"\n DOWNLOADED COMPLETED")
+    logger.info(f" Successful batches: {successful_tickers.shape[0]}/300")
+
+    if failed_tickers:
+        logger.info(f" Failed batches: {failed_tickers}")
+
+    return successful_tickers
+
+
 
 
 
@@ -243,4 +332,5 @@ if __name__ == "__main__":
     validate_tickers = valicate_incoming_tickers(top_300)
     date_range=get_current_quarter(last_quarter=[1,2026])
     cik_batches = generate_cik_batches(validate_tickers)
-    print(cik_batches)
+    earnings_pershare_data= get_latest_earnings_data(cik_batches, date_range)
+    print(earnings_pershare_data)
