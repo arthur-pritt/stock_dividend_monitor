@@ -8,6 +8,15 @@ from itertools import islice
 
 
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA
+from config.logging_config import setup_logging
+from etl_pipeline.src.extract._clean_nasdaq_list import(
+    validateInData, extract_columns, normalize_names,
+    build_master_list, match_and_categorize,
+    get_top_300, validate_top_300
+    )
+from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
+
+
 #importing config files
 from config.logging_config import get_logger
 from config.settings import (
@@ -16,6 +25,7 @@ from config.settings import (
 
 #Getting the logger for the module
 logger=get_logger(__name__)
+setup_logging()
 
 def count_trading_days(start_date, end_date, calendar_name: str = "NYSE") -> int:
     """Count actual NYSE trading days between two dates (inclusive)."""
@@ -314,43 +324,45 @@ def validate_data_out(df):
     
     logger.info(f"VALIDATION OF HISTORICAL DATA COMPLETE")
     return df
-     
+
+def get_historical_data():
+    """
+    Facade function that orchestrates the entire  historical data on
+    counting, fetching, cleaning, auditting and validating."""
+
+    logger.info("Starting to collect Historical Prices...")
+    
+    #1. Extract + Prep
+    raw_data = load_nasdaq_data()
+    validated_data = validateInData(raw_data)
+    extracted_data= extract_columns(validated_data)
+    normalized_data=normalize_names(extracted_data)
+    master_list = build_master_list(normalized_data)
+    categorized_list = match_and_categorize(normalized_data,master_list)
+    top_300 = get_top_300(categorized_list)
+    ticker_list=validate_top_300(top_300)
+
+    #2.Fetch dividend + Process
+    tickers = validate_tickers(ticker_list)
+    historical_data = fetch_raw_data(tickers)
+    clean_data, data_results = clean_and_validate(historical_data)
+    audited_data, audit_results = audit_raw_data(clean_data)
+    final_historical_data =validate_data_out(audited_data)
+    logger.info("Pipeline Executed successfully. Historical Data is ready")
+
+    return final_historical_data
+
 
 if __name__ == "__main__":
-    from config.logging_config import setup_logging
-    from etl_pipeline.src.extract._clean_nasdaq_list import (
-        validateInData, extract_columns, normalize_names,
-        build_master_list, match_and_categorize,
-        get_top_300, validate_top_300, pre_validate_with_yahoo
-    )
-    from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
+    try:
+        historical_data = get_historical_data()
+        print("\n=====PIPELINE SUCCESS===")
+        print(historical_data)
 
-    setup_logging()
-    logger.info("Starting to collect Historical Prices...")
+    except Exception as e:
+        logger.error(f" Pipeline Failed: {str(e)}")
 
-    # Extract + prep
-    df = load_nasdaq_data()
-    df = validateInData(df)
-    df = extract_columns(df)
-    df = normalize_names(df)
+    
 
-    master = build_master_list(df)
-    df = match_and_categorize(df, master)
-
-    top_300 = get_top_300(df)
-    top_300 = validate_top_300(top_300)
-
-    # Fetch + process
-    tickers = validate_tickers(top_300)
-    raw_data = fetch_raw_data(tickers)
-
-    clean_df, clean_results = clean_and_validate(raw_data)
-    audited_df, audit_results = audit_raw_data(clean_df)
-    historical_df=validate_data_out(audited_df)
-
-    # Log results (not full dataframes)
-    logger.info(clean_results)
-    logger.info(audited_df.info())
-    logger.info(historical_df)
 
     
