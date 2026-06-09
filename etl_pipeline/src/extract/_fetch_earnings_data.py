@@ -296,7 +296,39 @@ def get_latest_earnings_data(batch, date_range):
 
     return successful_tickers
 
+def validate_earnings_tickers(earning_df):
+    """
+    Validate the output from the latest earning per share tickers"""
 
+    #confirm it is None
+    if  earning_df is None:
+        raise ValueError("No data to validate")
+    
+    #confirm the dataframe is pandas dataframe
+    if not isinstance(earning_df, pd.DataFrame):
+        raise TypeError(f" Expectec pandas dataframe got {type(df).__name__}")
+    
+    #confirm the dataframe is empty
+    if earning_df.empty:
+        raise ValueError(f" The dataframe is empty")
+    
+    #confirm the minimum number of rows to be 400
+    if earning_df.shape[0]<150:
+        raise ValueError(f" The datafraame has less than 150 rows which represent 10")
+    
+    #confirm the required columns
+    required_cols=['ticker','quarter','earnings_pershare_diluted']
+    missing_col=[]
+
+    for col in required_cols:
+        if col not in earning_df.columns:
+            missing_col.append(col)
+
+    if missing_col:
+        raise ValueError(f" Missing columns are {missing_col}")
+
+    logger.info(f"VALIDATION OF EARNINGS PER SHARE DILUTED COMPLETED")
+    return earning_df
 
 
 
@@ -332,5 +364,6 @@ if __name__ == "__main__":
     validate_tickers = valicate_incoming_tickers(top_300)
     date_range=get_current_quarter(last_quarter=[1,2026])
     cik_batches = generate_cik_batches(validate_tickers)
-    earnings_pershare_data= get_latest_earnings_data(cik_batches, date_range)
-    print(earnings_pershare_data)
+    earnings_data= get_latest_earnings_data(cik_batches, date_range)
+    earnings_df=validate_earnings_tickers(earnings_data)
+    print(earnings_data)
