@@ -15,26 +15,15 @@ from dotenv import load_dotenv
 
 from config.logging_config import get_logger
 from config.logging_config import setup_logging
-from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
-from etl_pipeline.src.extract._clean_nasdaq_list import(
-    validate_top_300,
-    extract_columns,
-    validateInData,
-    normalize_names,
-    build_master_list,
-    match_and_categorize,
-    get_top_300)
+from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
 from config.settings import DATA_COLS
 from etl_pipeline.src.extract._standardization_setup import build_standardization_context
-
 
 logger = get_logger(__name__)
 setup_logging()
 load_dotenv()
 set_identity(os.environ.get("EDGAR_IDENTITY"))
-
-
 
 def validate_incoming_tickers(df):
     """Validating the inputs of 300 tickers and comfirming the data is 
@@ -375,14 +364,7 @@ def validate_dividend_tickers(dividend_df):
 def get_dividend_data():
     """A facade function that orchestrates the entire dividend file"""
     #Gather raw materials
-    raw_data=load_nasdaq_data()
-    validated_data = validateInData(raw_data)
-    extracted_data = extract_columns(validated_data)
-    normalized_data = normalize_names(extracted_data)
-    master_list = build_master_list(normalized_data)
-    categorized_list= match_and_categorize(normalized_data, master_list)
-    top_300 = get_top_300(categorized_list)
-    final_list = validate_top_300(top_300)
+    final_list = get_nasdaq_list()
 
     # Fetching dividend prices process
     tickers = validate_incoming_tickers(final_list)

@@ -12,14 +12,17 @@ import os
 from dotenv import load_dotenv 
 
 from config.logging_config import get_logger
+from config.logging_config import setup_logging
+from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
 from config.settings import DATA_COLS
 
 logger = get_logger(__name__)
 load_dotenv()
+setup_logging()
 set_identity(os.environ.get("EDGAR_IDENTITY"))
 
-def valicate_incoming_tickers(df):
+def validate_incoming_tickers(df):
     """Validate the inputs of 300 tickers and confornm the data is OK."""
 
     #CHECK/CONFIRM : data is Not None
@@ -330,40 +333,29 @@ def validate_earnings_tickers(earning_df):
     logger.info(f"VALIDATION OF EARNINGS PER SHARE DILUTED COMPLETED")
     return earning_df
 
+def get_earning_data():
+    """
+    Facade function that orchestrates the main earning data file."""
 
+    # Gather all the raw materials
+    final_list= get_nasdaq_list()
+
+    # Fetching earning data prices
+    tickers = validate_incoming_tickers(final_list)
+    current_quarter = get_current_quarter(last_quarter=[1,2026])
+    cik_batches = generate_cik_batches(tickers)
+    earnings_data = get_latest_earnings_data(cik_batches,current_quarter)
+    validated_earning_data =validate_earnings_tickers(earnings_data)
+
+    logger.info(f" Pipeline Executed Successfully. Earning data is READY.")
+    return validated_earning_data
 
 if __name__ == "__main__":
-    from config.logging_config import setup_logging
-    from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
-    from etl_pipeline.src.extract._clean_nasdaq_list import(
-        validate_top_300,
-        extract_columns,
-        validateInData,
-        normalize_names,
-        build_master_list,
-        match_and_categorize,
-        get_top_300
-    )
+    
+    try:
+        earning_data = get_earning_data()
+        print("\n====PIPELINE SUCCESS====")
+        print(earning_data)
 
-    setup_logging()
-    logger.info("Starting to Fetch earning per share data from SEC EDGAR API===")
-
-    #Extract + Prep
-
-    df = load_nasdaq_data()
-    df = validateInData(df)
-    df = extract_columns(df)
-    df = normalize_names(df)
-    master = build_master_list(df)
-    df = match_and_categorize(df, master)
-
-    top_300 = get_top_300(df)
-    top_300 = validate_top_300(top_300)
-
-    #Fetch earning per share prices + Process
-    validate_tickers = valicate_incoming_tickers(top_300)
-    date_range=get_current_quarter(last_quarter=[1,2026])
-    cik_batches = generate_cik_batches(validate_tickers)
-    earnings_data= get_latest_earnings_data(cik_batches, date_range)
-    earnings_df=validate_earnings_tickers(earnings_data)
-    print(earnings_data)
+    except Exception as e:
+        logger.error(f" Pipeline Failed: {str(e)}")

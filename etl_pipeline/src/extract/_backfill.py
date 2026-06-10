@@ -8,17 +8,13 @@ from itertools import islice
 
 
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA
-from config.logging_config import setup_logging
-from etl_pipeline.src.extract._clean_nasdaq_list import(
-    validateInData, extract_columns, normalize_names,
-    build_master_list, match_and_categorize,
-    get_top_300, validate_top_300
-    )
-from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
-
+from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 
 #importing config files
-from config.logging_config import get_logger
+from config.logging_config import(
+    get_logger,
+    setup_logging
+)
 from config.settings import (
     DATA_COLS
 )
@@ -333,17 +329,10 @@ def get_historical_data():
     logger.info("Starting to collect Historical Prices...")
     
     #1. Extract + Prep
-    raw_data = load_nasdaq_data()
-    validated_data = validateInData(raw_data)
-    extracted_data= extract_columns(validated_data)
-    normalized_data=normalize_names(extracted_data)
-    master_list = build_master_list(normalized_data)
-    categorized_list = match_and_categorize(normalized_data,master_list)
-    top_300 = get_top_300(categorized_list)
-    ticker_list=validate_top_300(top_300)
+    final_list = get_nasdaq_list()
 
     #2.Fetch dividend + Process
-    tickers = validate_tickers(ticker_list)
+    tickers = validate_tickers(final_list)
     historical_data = fetch_raw_data(tickers)
     clean_data, data_results = clean_and_validate(historical_data)
     audited_data, audit_results = audit_raw_data(clean_data)

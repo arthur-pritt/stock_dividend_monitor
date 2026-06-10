@@ -10,19 +10,13 @@ from datetime import datetime, timedelta
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA,CURRENT_PRICE_FILE_SCHEMA
 from etl_pipeline.src.extract._smart_session import RobustCurlSession
 from config.logging_config import setup_logging
-from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
-from etl_pipeline.src.extract._clean_nasdaq_list import(
-    validate_top_300,validate_top_300,
-    extract_columns,validateInData,
-    normalize_names,
-    build_master_list,
-    match_and_categorize,
-    get_top_300)
+from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 
 from config.logging_config import get_logger
 from config.settings import DATA_COLS
 
 logger= get_logger(__name__)
+setup_logging()
 
 def count_nyse_trading_days(start_date, end_date, inclusive=True, calendar_name= 'NYSE'):
     """
@@ -423,14 +417,7 @@ def get_price_data():
     logger.info("Starting to Fetch the Current Closing DAY prices=========")
 
     # Gather the raw materials
-    raw_data = load_nasdaq_data()
-    validated_data = validateInData(raw_data)
-    extracted_data = extract_columns(validated_data)
-    normalized_data = normalize_names(extracted_data)
-    master_list = build_master_list(normalized_data)
-    categorized_list = match_and_categorize(normalized_data, master_list)
-    top_300 = get_top_300(categorized_list)
-    final_list = validate_top_300(top_300)
+    final_list = get_nasdaq_list()
 
     # Fetching stock price process
     tickers = validate_tickers(final_list)
