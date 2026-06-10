@@ -14,12 +14,23 @@ from dotenv import load_dotenv
 
 
 from config.logging_config import get_logger
+from config.logging_config import setup_logging
+from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
+from etl_pipeline.src.extract._clean_nasdaq_list import(
+    validate_top_300,
+    extract_columns,
+    validateInData,
+    normalize_names,
+    build_master_list,
+    match_and_categorize,
+    get_top_300)
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
 from config.settings import DATA_COLS
 from etl_pipeline.src.extract._standardization_setup import build_standardization_context
 
 
 logger = get_logger(__name__)
+setup_logging()
 load_dotenv()
 set_identity(os.environ.get("EDGAR_IDENTITY"))
 
@@ -224,6 +235,8 @@ def generate_cik_batches(df):
 
 def get_latest_dividend_declarations(batch, date_range):
     """
+    A function that pulls dividend per share from SEC EDGAR tools api and returns ticker, dividend per share, Quarter and Year.
+    The function pulls out dates quartely and yearly. The function selects the last  quarter and annual dates any time it is called.
     """
     successful_tickers = []
     failed_tickers =[]
@@ -359,41 +372,37 @@ def validate_dividend_tickers(dividend_df):
     logger.info(f"VALIDATION OF DIVIDEND PER SHARE COMPLETED")
     return dividend_df
 
+def get_dividend_data():
+    """A facade function that orchestrates the entire dividend file"""
+    #Gather raw materials
+    raw_data=load_nasdaq_data()
+    validated_data = validateInData(raw_data)
+    extracted_data = extract_columns(validated_data)
+    normalized_data = normalize_names(extracted_data)
+    master_list = build_master_list(normalized_data)
+    categorized_list= match_and_categorize(normalized_data, master_list)
+    top_300 = get_top_300(categorized_list)
+    final_list = validate_top_300(top_300)
+
+    # Fetching dividend prices process
+    tickers = validate_incoming_tickers(final_list)
+    date_range = get_current_quarter(last_quarter=[1,2026])
+    cik_batches = generate_cik_batches(tickers)
+    dividend_data = get_latest_dividend_declarations(cik_batches, date_range)
+    dividend_df= validate_dividend_tickers(dividend_data)
+
+    logger.info("Pipeline Executed successfuly. Dividend price data is READY")
+    return dividend_data
+
 if __name__ == "__main__":
-    from config.logging_config import setup_logging
-    from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
-    from etl_pipeline.src.extract._clean_nasdaq_list import(
-        validate_top_300,
-        extract_columns,
-        validateInData,
-        normalize_names,
-        build_master_list,
-        match_and_categorize,
-        get_top_300
-    )
 
-    setup_logging()
-    logger.info("Starting to Fecth Dividend Per Share Data=====")
+    try:
+        dividend_data = get_dividend_data()
+        print("\n=====PIPELINE SUCCESS===")
+        print(dividend_data)
 
-    #Extract + Prep
-    df = load_nasdaq_data()
-    df = validateInData(df)
-    df = extract_columns(df)
-    df = normalize_names(df)
-    master = build_master_list(df)
-    df = match_and_categorize(df, master)
-
-    top_300 = get_top_300(df)
-    top_300 = validate_top_300(top_300)
-
-    #Fetch dividend per share prices  + Process
-    validated_tickers = validate_incoming_tickers(top_300)
-    date_range=get_current_quarter(last_quarter=[1,2026])
-    cik_batches=generate_cik_batches(validated_tickers)
-    dividend_data=get_latest_dividend_declarations(cik_batches,date_range)
-    dividend_df=validate_dividend_tickers(dividend_data)
-    print(dividend_data)
-    print(dividend_df)
+    except Exception as e:
+        logger.error(f" Pipeline Failed: {str(e)}")
 
     
     
