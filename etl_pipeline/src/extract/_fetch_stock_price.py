@@ -9,6 +9,15 @@ from datetime import datetime, timedelta
 
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA,CURRENT_PRICE_FILE_SCHEMA
 from etl_pipeline.src.extract._smart_session import RobustCurlSession
+from config.logging_config import setup_logging
+from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
+from etl_pipeline.src.extract._clean_nasdaq_list import(
+    validate_top_300,validate_top_300,
+    extract_columns,validateInData,
+    normalize_names,
+    build_master_list,
+    match_and_categorize,
+    get_top_300)
 
 from config.logging_config import get_logger
 from config.settings import DATA_COLS
@@ -406,41 +415,43 @@ def validating_clean_tickers(clean_df):
     logger.info(f"VALIDATION OF TICKER ADJUST CLOSE COMPLETED")
 
     return clean_df
-    
 
-if __name__ == "__main__":
-    from config.logging_config import setup_logging
-    from etl_pipeline.src.extract._download_nasdaq_list import load_nasdaq_data
-    from etl_pipeline.src.extract._clean_nasdaq_list import (
-        validate_top_300,validate_top_300,
-        extract_columns,validateInData,normalize_names,build_master_list,match_and_categorize,
-        get_top_300)
-    setup_logging()
+def get_price_data():
+    """
+    Facade function that orchestrates the entire stoc price file."""
+
     logger.info("Starting to Fetch the Current Closing DAY prices=========")
 
-    #Extract + Prep
-    # Extract + prep
-    df = load_nasdaq_data()
-    df = validateInData(df)
-    df = extract_columns(df)
-    df = normalize_names(df)
+    # Gather the raw materials
+    raw_data = load_nasdaq_data()
+    validated_data = validateInData(raw_data)
+    extracted_data = extract_columns(validated_data)
+    normalized_data = normalize_names(extracted_data)
+    master_list = build_master_list(normalized_data)
+    categorized_list = match_and_categorize(normalized_data, master_list)
+    top_300 = get_top_300(categorized_list)
+    final_list = validate_top_300(top_300)
 
-    master = build_master_list(df)
-    df = match_and_categorize(df, master)
-
-    top_300 = get_top_300(df)
-    top_300 = validate_top_300(top_300)
-
-    #Fetch + Process
-    tickers= validate_top_300(top_300)
-    tickers=validate_tickers(tickers)
-    valid_days, _= count_nyse_trading_days('2025-01-01', '2026-01-10', inclusive=True)
-    candidate_days=recent_two_trading_days()
-    batches=generate_batches(tickers)
+    # Fetching stock price process
+    tickers = validate_tickers(final_list)
+    valid_days, _= count_nyse_trading_days('2025-01-01','2026-07-10',inclusive=True)
+    candidate_days = recent_two_trading_days()
+    batches= generate_batches(tickers)
     ticker_prices=fetch_adjusted_close(batches)
     clean_prices=clean_ticker_prices(ticker_prices)
-    validated_tickers=validating_clean_tickers(clean_prices)
-    print(validated_tickers)
+    validated_price_data = validating_clean_tickers(clean_prices)
+    
+    logger.info("Pipeline Executed successfuly. Stock Price Data is READY")
+    return validated_price_data
+
+if __name__ == "__main__":
+    try:
+        stock_price_data = get_price_data()
+        print("\n=====PIPELINE SUCCESS====")
+        print(stock_price_data)
+
+    except Exception as e:
+        logger.error(f" Pipeline Failed: {str(e)}")
     
     
     
