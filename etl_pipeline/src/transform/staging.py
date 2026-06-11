@@ -71,46 +71,65 @@ def unified_ticker_table(
         prices_table,
         dividend_table,
         earning_table,
-        data_list
+        data_list,
 ):
     """
     Merging four data sources(fetch_stock_price, dividend_data,nasdaq_list, earning_data)
     into a unified master table. The most recent quarter's dividend is attached to the daily price
     """
-    
+
+    #Simulating four dataframes
 
     dfs=[
+        data_list,
         prices_table,
         dividend_table,
         earning_table,
-        data_list
     ]
 
-    merged_df= reduce(
-        lambda left, right:
-        left.merge(right, on="ticker"),
-        dfs
-    )
+    #Prehandle the schemas and data types *before* reduction begins
+    #Ensuring that the join key is strictly the same across all the dataset since it is a string to prevent bugs
+    def sanitize_dataframe(df):
+        if 'ticker' in df.columns:
+            df['ticker'] = df['ticker'].astype(str)
+        return df 
+    
+    # Apply sanitization to all dataframes
+    clean_dfs = [sanitize_dataframe(df) for df in dfs]
 
-    return merged_df
+    try:
+        complete_stock_table = reduce(
+            lambda left, right: pd.merge( #reduce and pd.merge used to have a maximum granular control over column-based joins.
+                left,
+                right,
+                on='ticker',
+                how='left',
+                suffixes=(None, '_dup') #controls overlapping/duplicate columns
+            ),
+           clean_dfs 
+        )
+        # Clean up any duplicated columns generated during the loop
+        complete_stock_table= complete_stock_table.loc[:, ~complete_stock_table.columns.str.endswith('_dup')]
+    except TypeError:
+        logger.error("ERROR: The dataframe list was empty")
+    complete_stock_table= pd.DataFrame() #Fallback state
+
+    return complete_stock_table
 
 if __name__ == "__main__":
-    setup_logging()
     set_identity(os.environ.get("EDGAR_IDENTITY"))
 
     try:
         logger.info("====Starting to merge all four files===")
 
         final_list= get_nasdaq_list()
-        validated_staging_data = validate_data_list(final_list)
-        print(validated_staging_data)
-        #data_list = get_nasdaq_list()
-        #prices_data=get_price_data(data_list)
-        #dividend_data = get_dividend_data(data_list)
-        #earning_data = get_earning_data(data_list)
+        staging_data = validate_data_list(final_list)
+        prices_data=get_price_data(staging_data)
+        dividend_data = get_dividend_data(staging_data)
+        earning_data = get_earning_data(staging_data)
 
-        #ticker_table=unified_ticker_table(data_list,prices_data,dividend_data,earning_data)
-        #print(ticker_table.head())
+        ticker_table=unified_ticker_table(prices_data, dividend_data,earning_data, staging_data)
+        print(ticker_table.head())
     except Exception as e:
         logger.error(f"Merging FAILED: {str(e)}")
 
