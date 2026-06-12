@@ -80,6 +80,10 @@ def unified_ticker_table(
 
     #Simulating four dataframes
 
+    prices_table = prices_table.drop(columns=['year','month'])
+    dividend_table = dividend_table.drop(columns=['cik'])
+    earning_table = earning_table.drop(columns=['cik','quarter','year'])
+
     dfs=[
         data_list,
         prices_table,
@@ -103,8 +107,7 @@ def unified_ticker_table(
                 left,
                 right,
                 on='ticker',
-                how='left',
-                suffixes=(None, '_dup') #controls overlapping/duplicate columns
+                how='left'
             ),
            clean_dfs 
         )
@@ -112,7 +115,7 @@ def unified_ticker_table(
         complete_stock_table= complete_stock_table.loc[:, ~complete_stock_table.columns.str.endswith('_dup')]
     except TypeError:
         logger.error("ERROR: The dataframe list was empty")
-    complete_stock_table= pd.DataFrame() #Fallback state
+        complete_stock_table= pd.DataFrame() #Fallback state
 
     return complete_stock_table
 
