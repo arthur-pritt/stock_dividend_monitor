@@ -47,6 +47,8 @@ def load_nasdaq_data()-> Optional[pd.DataFrame]:
         df = pd.read_csv(nasdaq_csv_path)
         #converting the columns into lowecase
         df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+        #rename the symbol into ticker
+        df=df.rename(columns={'symbol':'ticker'})
         logger.info(f"SUCCESS: Data has been loaded {len(df)}")
         return df
     except FileNotFoundError:
