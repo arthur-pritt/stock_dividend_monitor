@@ -11,19 +11,21 @@ from edgar import set_identity
 import os
 from dotenv import load_dotenv
 
-
-
 from config.logging_config import get_logger
 from config.logging_config import setup_logging
 from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
-from config.settings import DATA_COLS
-from etl_pipeline.src.extract._standardization_setup import build_standardization_context
+from config.settings import (
+    DATA_COLS,
+    DIVIDENDS_FILEPATH,
+    RAW_SUBDIR
+)
+
+RAW_SUBDIR.mkdir(parents=True, exist_ok=True)
 
 logger = get_logger(__name__)
 setup_logging()
 load_dotenv()
-set_identity(os.environ.get("EDGAR_IDENTITY"))
 
 def validate_incoming_tickers(df):
     """Validating the inputs of 300 tickers and comfirming the data is 
@@ -359,12 +361,56 @@ def validate_dividend_tickers(dividend_df):
         raise ValueError(f" Missing columns are {missing_col}")
     
     logger.info(f"VALIDATION OF DIVIDEND PER SHARE COMPLETED")
-    return dividend_df
+    # Saving the dividend data results to CSV
 
-def get_dividend_data():
-    """A facade function that orchestrates the entire dividend file"""
+    logger.info(f"===Starting to save dividend data results in a CSV file")
+    dividend_data = dividend_df
+    dividend_df.to_csv(
+        DIVIDENDS_FILEPATH,
+        index= False, 
+        date_format= "%Y-%m-%d",
+        float_format = "%.2f",
+        na_rep= "NA",
+        encoding= "utf-8"
+
+    )
+    logger.info(f"=====DIVIDEND DATA SAVED===")
+    return dividend_data
+
+def get_dividend_data(nasdaq_list):
+    """Checks if data is fresh and orchestrates the entire dividend file"""
+
+    if DIVIDENDS_FILEPATH.is_file():  #Checking if the file exists first
+        quarter = get_current_quarter(last_quarter=None)
+        current_quarter = pd.Timestamp(quarter[-1]).quarter  #Most recent quarter 
+        current_year = quarter[-1].year #Most recent/current year
+
+        #Read only the year and quarter column
+
+        existing = pd.read_csv(
+            DIVIDENDS_FILEPATH,
+            usecols=["quarter", "year"],
+            dtype={"quarter": int, "year": int}
+        )
+
+        latest_quarter = existing["quarter"].max()
+        latest_year = existing["year"].max()
+
+        if latest_year >= current_year and latest_quarter >= current_quarter:
+            logger.info(f"File Found, loading fresh dividend data from the disk....")
+            return pd.read_csv(
+                DIVIDENDS_FILEPATH,
+                dtype={
+                    "ticker": str, 
+                    "cik" : str, 
+                    "dividend_per_share" : str, 
+                    "quarter ": int, 
+                    "year" : int
+                }
+            )
+
     #Gather raw materials
-    final_list = get_nasdaq_list()
+    final_list = nasdaq_list
 
     # Fetching dividend prices process
     tickers = validate_incoming_tickers(final_list)
@@ -373,13 +419,24 @@ def get_dividend_data():
     dividend_data = get_latest_dividend_declarations(cik_batches, date_range)
     dividend_df= validate_dividend_tickers(dividend_data)
 
-    logger.info("Pipeline Executed successfuly. Dividend price data is READY")
-    return dividend_data
+    #Saving the fresh dividen data
+    fresh_dividend_data = dividend_df 
+    fresh_dividend_data.to_csv(
+        DIVIDENDS_FILEPATH,
+        index= False, 
+        float_format= "%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+
+    logger.info("Pipeline Executed successfuly. FRESH Dividend price data is READY")
+    return fresh_dividend_data
 
 if __name__ == "__main__":
 
     try:
-        dividend_data = get_dividend_data()
+        data_list=get_nasdaq_list()
+        dividend_data = get_dividend_data(data_list)
         print("\n=====PIPELINE SUCCESS===")
         print(dividend_data)
 
