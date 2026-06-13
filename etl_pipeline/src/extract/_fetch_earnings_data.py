@@ -15,12 +15,16 @@ from config.logging_config import get_logger
 from config.logging_config import setup_logging
 from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
-from config.settings import DATA_COLS
-
+from config.settings import (
+    DATA_COLS,
+    EARNINGS_FILEPATH,
+    RAW_SUBDIR
+)
+RAW_SUBDIR.mkdir(parents=True, exist_ok=True)
 logger = get_logger(__name__)
 load_dotenv()
 setup_logging()
-set_identity(os.environ.get("EDGAR_IDENTITY"))
+
 
 def validate_incoming_tickers(df):
     """Validate the inputs of 300 tickers and confornm the data is OK."""
@@ -237,7 +241,7 @@ def get_latest_earnings_data(batch, date_range):
                     successful_tickers.append(pd.DataFrame([{
                         'ticker' : ticker, 
                         'cik' : cik,
-                        'earnings_pershare_diluted' :0.0,
+                        'earnings_pershare' :0.0,
                         'quarter' :(start_date.month -1)//3 + 1,
                         'year' : start_date.year
                     }]))
@@ -265,8 +269,8 @@ def get_latest_earnings_data(batch, date_range):
                 company_df['cik']= cik 
                 company_df['quarter']=company_df['period_end'].apply(lambda x: (x.month- 1)//3 + 1)
                 company_df['year'] = company_df['period_end'].apply(lambda x: x.year)
-                company_df['earnings_pershare_diluted'] = company_df['value']
-                company_df=company_df[['ticker', 'cik', 'earnings_pershare_diluted', 'quarter', 'year']]
+                company_df['earnings_pershare'] = company_df['value']
+                company_df=company_df[['ticker', 'cik', 'earnings_pershare', 'quarter', 'year']]
 
                 #Appending/storing columns to successful_tickers dataframe
                 successful_tickers.append(company_df)
@@ -285,7 +289,7 @@ def get_latest_earnings_data(batch, date_range):
 
     if successful_tickers:
         successful_tickers = pd.concat(successful_tickers, axis=0, ignore_index=True)
-        successful_tickers['earnings_pershare_diluted']= successful_tickers['earnings_pershare_diluted'].astype(float)
+        successful_tickers['earnings_pershare']= successful_tickers['earnings_pershare'].astype(float)
         logger.info(f"\n=== COMPLETED! {successful_tickers.shape[0]}")
 
     else:
@@ -320,7 +324,7 @@ def validate_earnings_tickers(earning_df):
         raise ValueError(f" The datafraame has less than 150 rows which represent 10")
     
     #confirm the required columns
-    required_cols=['ticker','quarter','earnings_pershare_diluted']
+    required_cols=['ticker','quarter','earnings_pershare']
     missing_col=[]
 
     for col in required_cols:
@@ -331,14 +335,56 @@ def validate_earnings_tickers(earning_df):
         raise ValueError(f" Missing columns are {missing_col}")
 
     logger.info(f"VALIDATION OF EARNINGS PER SHARE DILUTED COMPLETED")
-    return earning_df
 
-def get_earning_data():
+    # Saving the earnings per share data to CSV
+    logger.info(f"======Starting to save dividend data results in a CSV file")
+    earning_share_data= earning_df
+    earning_share_data.to_csv(
+        EARNINGS_FILEPATH,
+        index= False, 
+        date_format="%Y-%m-%d",
+        float_format="%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+    logger.info(f"====EARNING PER SHARE DATA SAVED===")
+    return earning_share_data
+
+def get_earning_data(nasdaq_list):
     """
-    Facade function that orchestrates the main earning data file."""
+    checks for fresh earning data and orchestrates the main earning data file."""
+
+    if EARNINGS_FILEPATH.is_file(): #Checking if the file exists
+        quarter = get_current_quarter(last_quarter=None)
+        current_quarters= pd.Timestamp(quarter[-1]).quarter #Most recent quarter
+        current_year = quarter[-1].year #Most recent/current year
+
+        #Read only the year and quarter column
+
+        existing = pd.read_csv(
+            EARNINGS_FILEPATH,
+            usecols=["quarter", "year"],
+            dtype={"quarter" : int, "year" : int}
+        )
+
+        latest_quarter = existing["quarter"].max()
+        latest_year = existing["year"].max()
+
+        if latest_year >= current_year and latest_quarter >= current_quarters:
+            logger.info(f"File Found, loading fresh earning per share data from the disk....")
+            return pd.read_csv(
+                EARNINGS_FILEPATH,
+                dtype={
+                    "ticker" : str,
+                    "cik" : str,
+                    "earnings_pershare" : str, 
+                    "quarter": int,
+                    "year" : int 
+                }
+            )
 
     # Gather all the raw materials
-    final_list= get_nasdaq_list()
+    final_list= nasdaq_list
 
     # Fetching earning data prices
     tickers = validate_incoming_tickers(final_list)
@@ -347,13 +393,24 @@ def get_earning_data():
     earnings_data = get_latest_earnings_data(cik_batches,current_quarter)
     validated_earning_data =validate_earnings_tickers(earnings_data)
 
-    logger.info(f" Pipeline Executed Successfully. Earning data is READY.")
+    #Saving the fresh earning data to CSV file
+    fresh_earning_data = validated_earning_data
+    fresh_earning_data.to_csv(
+        EARNINGS_FILEPATH,
+        index= False,
+        float_format= "%.2f",
+        na_rep="NA",
+        encoding= "utf-8"
+    )
+
+    logger.info(f" Pipeline Executed Successfully. Fresh Earning data is READY.")
     return validated_earning_data
 
 if __name__ == "__main__":
     
     try:
-        earning_data = get_earning_data()
+        data_list = get_nasdaq_list()
+        earning_data = get_earning_data(data_list)
         print("\n====PIPELINE SUCCESS====")
         print(earning_data)
 
