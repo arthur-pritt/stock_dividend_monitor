@@ -13,7 +13,13 @@ from config.logging_config import setup_logging
 from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
 
 from config.logging_config import get_logger
-from config.settings import DATA_COLS
+from config.settings import (
+    DATA_COLS,
+    DAILY_PRICE_FILEPATH,
+    RAW_SUBDIR
+)
+
+RAW_SUBDIR.mkdir(parents=True, exist_ok=True)
 
 logger= get_logger(__name__)
 setup_logging()
@@ -376,7 +382,7 @@ def clean_ticker_prices(df):
     return final_df
 
 def validating_clean_tickers(clean_df):
-    """Validating the output from the clean ticker price function."""
+    """Validating the output from the clean ticker price function and save."""
 
     #Confirm it is not none
     if clean_df is None:
@@ -407,17 +413,45 @@ def validating_clean_tickers(clean_df):
         raise ValueError(f"Missing columns are {missing_col}")
     
     logger.info(f"VALIDATION OF TICKER ADJUST CLOSE COMPLETED")
-
+    #Saving the results to csv
+    logger.info(f"====Starting to  save daily stock price in an CSV file.")
+    stock_price_df= clean_df
+    stock_price_df.to_csv(
+        DAILY_PRICE_FILEPATH,
+        index= False,
+        date_format = "%Y-%m-%d",
+        float_format = "%.2f",
+        na_rep= "NA",
+        encoding="utf-8"
+    )
+    logger.info(f"====DAILY STOCK PRICE SAVED====")
     return clean_df
 
-def get_price_data():
+def get_price_data(nasdaq_list):
     """
-    Facade function that orchestrates the entire stoc price file."""
+    checks if data is fresh and orchestrates the entire stoc price file."""
 
     logger.info("Starting to Fetch the Current Closing DAY prices=========")
 
-    # Gather the raw materials
-    final_list = get_nasdaq_list()
+    if DAILY_PRICE_FILEPATH.is_file(): #Checking if the file exists
+        last_two= recent_two_trading_days()
+        last_trading_date = last_two[-1].date() #Most recent days
+        #reading the whole date column ONLY
+        existing =pd.read_csv(DAILY_PRICE_FILEPATH, usecols=["date"], parse_dates=["date"])
+        latest_date_in_the_file =existing["date"].max().date()
+        if latest_date_in_the_file >=last_trading_date:
+            logger.info("File Found, loading fresh daily stock data from the disk....")
+            return pd.read_csv(
+                DAILY_PRICE_FILEPATH,
+                parse_dates=["date"],
+                dtype={
+                    "ticker":str,
+                    "adj_close":float,}
+                    )
+        
+    
+    # Gather the raw material
+    final_list = nasdaq_list
 
     # Fetching stock price process
     tickers = validate_tickers(final_list)
@@ -426,14 +460,15 @@ def get_price_data():
     batches= generate_batches(tickers)
     ticker_prices=fetch_adjusted_close(batches)
     clean_prices=clean_ticker_prices(ticker_prices)
-    validated_price_data = validating_clean_tickers(clean_prices)
+    validated_stock_data = validating_clean_tickers(clean_prices)
     
     logger.info("Pipeline Executed successfuly. Stock Price Data is READY")
-    return validated_price_data
+    return validated_stock_data
 
 if __name__ == "__main__":
     try:
-        stock_price_data = get_price_data()
+        data_list = get_nasdaq_list()
+        stock_price_data = get_price_data(data_list)
         print("\n=====PIPELINE SUCCESS====")
         print(stock_price_data)
 
