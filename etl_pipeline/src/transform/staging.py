@@ -88,7 +88,7 @@ def unified_ticker_table(
         data_list,
         prices_table,
         dividend_table,
-        earning_table,
+        earning_table
     ]
 
     #Prehandle the schemas and data types *before* reduction begins
