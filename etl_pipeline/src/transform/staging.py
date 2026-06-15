@@ -4,6 +4,7 @@ from edgar import set_identity
 import os 
 from dotenv import load_dotenv
 import pandera.pandas as pa
+from datetime import datetime, timedelta
 
 
 from config.logging_config import (
@@ -71,8 +72,6 @@ def validate_data_list(df):
     logger.info(f"Final validated dataset: {len(validated_df)} rows after dropping NaNs")
     
     return validated_df
-
-
 
 def unified_ticker_table(
         prices_table,
@@ -166,7 +165,7 @@ def cleaning_stock_table(df):
         )
         final_report = pd.DataFrame(report)
 
-        return df
+    return df
 
 def validating_stock_table(stock_df):
     """
@@ -194,24 +193,61 @@ def validating_stock_table(stock_df):
 
     for col in required_col:
         if col not in stock_df.columns:
-            missing_col.append(stock_df)
+            missing_col.append(col)
 
     if missing_col:
         raise ValueError(f" Missing columns are {missing_col}")
 
     logger.info(f" VALIDATION OF STOCK TABLE COMPLETE")
     # Saving the staging results to CSV file
-    fresh_stock_df = stock_df
-    fresh_stock_df.to_csv(
+    return stock_df
+
+def get_stock_table():
+    """
+    Checks if the stock table contains fresh data and orcherstars
+    the entire staging file."""
+
+
+    logger.info("Starting to Fetch fresh stock table.=====")
+
+
+    if STAGING_FILEPATH.is_file(): #Check if the complete stock table file exists
+        last_modified = datetime.fromtimestamp(os.path.getatime(STAGING_FILEPATH))
+        if datetime.now()-last_modified <= timedelta(days=1): #File-based freshness checking
+            logger.info(f"File Found, loading fresh stock data from the disk....")
+            return pd.read_csv(
+                STAGING_FILEPATH,
+                dtype={
+                    "ticker": str,
+                    "adj_close": float,
+                    "market_cap": float,
+                    "dividend_per_share":float,
+                    "earnings_pershare" : float
+                }
+            )
+        
+    # Gather everything
+    final_list = get_nasdaq_list()
+    staging_data = validate_data_list(final_list)
+    prices_data = get_price_data(staging_data)
+    dividend_data= get_dividend_data(staging_data)
+    earning_data = get_earning_data(staging_data)
+    ticker_table= unified_ticker_table(prices_data,dividend_data, earning_data, staging_data)
+    clean_stock_table = cleaning_stock_table(ticker_table)
+    saved_stock_data=validating_stock_table(clean_stock_table)
+
+    #Saving the fresh stock table data.
+    fresh_stock_data = saved_stock_data
+    fresh_stock_data.to_csv(
         STAGING_FILEPATH,
-        index = False, 
-        date_format = "%Y-%m-%d",
-        float_format="%.2f",
+        index= False,
+        float_format= "%.2f",
         na_rep="NA",
         encoding="utf-8"
     )
-    logger.info(f"=====COMPLETE STOCK TABLE SAVED.")
-    return fresh_stock_df
+
+    logger.info("Stock Table Executed Successfuly. FRESH Stock Table Data READY.")
+    return fresh_stock_data
     
 
 if __name__ == "__main__":
@@ -219,16 +255,9 @@ if __name__ == "__main__":
 
     try:
         logger.info("====Starting to merge all four files===")
-
-        final_list= get_nasdaq_list()
-        staging_data = validate_data_list(final_list)
-        prices_data=get_price_data(staging_data)
-        dividend_data = get_dividend_data(staging_data)
-        earning_data = get_earning_data(staging_data)
-        ticker_table=unified_ticker_table(prices_data, dividend_data, earning_data, staging_data)
-        clean_stock_table = cleaning_stock_table(ticker_table)
-        saved_stock_data = validating_stock_table(clean_stock_table)
-        print(saved_stock_data[:50])
+        merged_files=get_stock_table()
+        print("\n====PIPELINE SUCCESS===")
+        print(merged_files)
     
 
     except Exception as e:
