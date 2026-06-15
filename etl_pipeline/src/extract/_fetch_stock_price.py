@@ -413,18 +413,7 @@ def validating_clean_tickers(clean_df):
         raise ValueError(f"Missing columns are {missing_col}")
     
     logger.info(f"VALIDATION OF TICKER ADJUST CLOSE COMPLETED")
-    #Saving the results to csv
-    logger.info(f"====Starting to  save daily stock price in an CSV file.")
-    stock_price_df= clean_df
-    stock_price_df.to_csv(
-        DAILY_PRICE_FILEPATH,
-        index= False,
-        date_format = "%Y-%m-%d",
-        float_format = "%.2f",
-        na_rep= "NA",
-        encoding="utf-8"
-    )
-    logger.info(f"====DAILY STOCK PRICE SAVED====")
+    
     return clean_df
 
 def get_price_data(nasdaq_list):
@@ -461,9 +450,20 @@ def get_price_data(nasdaq_list):
     ticker_prices=fetch_adjusted_close(batches)
     clean_prices=clean_ticker_prices(ticker_prices)
     validated_stock_data = validating_clean_tickers(clean_prices)
+
+    #Saving the fresh data
+    fresh_stock_data= validated_stock_data
+    fresh_stock_data.to_csv(
+        DAILY_PRICE_FILEPATH,
+        index= False,
+        date_format="%Y-%m-%d",
+        float_format ="%.2f",
+        na_rep= "NA",
+        encoding="utf-8"
+    )
     
-    logger.info("Pipeline Executed successfuly. Stock Price Data is READY")
-    return validated_stock_data
+    logger.info("Pipeline Executed successfuly. FRESH Stock Price Data is READY")
+    return fresh_stock_data
 
 if __name__ == "__main__":
     try:

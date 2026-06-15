@@ -321,7 +321,7 @@ def validate_data_out(df):
     logger.info(f"VALIDATION OF HISTORICAL DATA COMPLETE")
     return df
 
-def get_historical_data():
+def get_historical_data(nasdaq_list):
     """
     Facade function that orchestrates the entire  historical data on
     counting, fetching, cleaning, auditting and validating."""
@@ -329,7 +329,7 @@ def get_historical_data():
     logger.info("Starting to collect Historical Prices...")
     
     #1. Extract + Prep
-    final_list = get_nasdaq_list()
+    final_list = nasdaq_list
 
     #2.Fetch dividend + Process
     tickers = validate_tickers(final_list)
@@ -344,7 +344,8 @@ def get_historical_data():
 
 if __name__ == "__main__":
     try:
-        historical_data = get_historical_data()
+        data_list=get_nasdaq_list()
+        historical_data = get_historical_data(data_list)
         print("\n=====PIPELINE SUCCESS===")
         print(historical_data)
 

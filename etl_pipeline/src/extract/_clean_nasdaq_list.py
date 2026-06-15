@@ -217,20 +217,8 @@ def validate_top_300(get_top_300):
         dupes =get_top_300[get_top_300[DATA_COLS['ticker']].duplicated()][DATA_COLS['ticker']].tolist()
         raise ValueError(f" The duplicated symbol found:{dupes}")
     logger.info(f"Complete validation process of top 300 nasdaq public listed companies by Market Cap")
-    #Saving to CSV
-    logger.info(f"====Starting to Save 300 clean stock tickers in a CSV===")
-    nasdaq_clean_list=get_top_300
-    nasdaq_clean_list.to_csv(
-        NASDAQ_LIST_FILEPATH,
-        index=False,
-        date_format="%Y-%m-%d",
-        float_format ="%.2f",
-        na_rep= "NA",
-        encoding="utf-8"
-    )
-    logger.info(f"===SAVING COMPLETED===")
 
-    return nasdaq_clean_list
+    return get_top_300
 
 def pre_validate_with_yahoo(symbols):
     #Initialize  the ticker object with the FULL list

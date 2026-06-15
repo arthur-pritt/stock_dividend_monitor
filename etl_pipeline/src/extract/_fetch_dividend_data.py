@@ -361,21 +361,7 @@ def validate_dividend_tickers(dividend_df):
         raise ValueError(f" Missing columns are {missing_col}")
     
     logger.info(f"VALIDATION OF DIVIDEND PER SHARE COMPLETED")
-    # Saving the dividend data results to CSV
-
-    logger.info(f"===Starting to save dividend data results in a CSV file")
-    dividend_data = dividend_df
-    dividend_df.to_csv(
-        DIVIDENDS_FILEPATH,
-        index= False, 
-        date_format= "%Y-%m-%d",
-        float_format = "%.2f",
-        na_rep= "NA",
-        encoding= "utf-8"
-
-    )
-    logger.info(f"=====DIVIDEND DATA SAVED===")
-    return dividend_data
+    return dividend_df
 
 def get_dividend_data(nasdaq_list):
     """Checks if data is fresh and orchestrates the entire dividend file"""
@@ -438,7 +424,7 @@ if __name__ == "__main__":
         data_list=get_nasdaq_list()
         dividend_data = get_dividend_data(data_list)
         print("\n=====PIPELINE SUCCESS===")
-        print(dividend_data)
+        print(dividend_data[:50])
 
     except Exception as e:
         logger.error(f" Pipeline Failed: {str(e)}")

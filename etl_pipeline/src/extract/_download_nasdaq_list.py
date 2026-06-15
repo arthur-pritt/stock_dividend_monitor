@@ -14,7 +14,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 #importing config files
-from config.settings import RAW_DATA_PATH
+from config.settings import RAW_FILEPATH
 
 def load_nasdaq_data()-> Optional[pd.DataFrame]:
     """Loading nasdaq csv list from data folder
@@ -26,7 +26,7 @@ def load_nasdaq_data()-> Optional[pd.DataFrame]:
     #Boundaries IN-Validating/check the data/file path before doing anything
 
     #accessing the nasdaq csv path/storing the file path
-    nasdaq_csv_path = RAW_DATA_PATH
+    nasdaq_csv_path = RAW_FILEPATH
     if nasdaq_csv_path is None:
         logger.error(f"No file path provided")
         return None 
