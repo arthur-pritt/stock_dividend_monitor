@@ -67,6 +67,7 @@ def validate_data_list(df):
     return validated_df
 
 
+
 def unified_ticker_table(
         prices_table,
         dividend_table,
@@ -119,6 +120,80 @@ def unified_ticker_table(
 
     return complete_stock_table
 
+def cleaning_stock_table(df):
+    """"
+    Investigates and cleans the data.
+    """
+
+    #Changing the values of column to title case
+    df['name']=df['name'].str.title()
+
+    report = []
+    #Doing an audit to find missing values, duplicates, confirming datatype
+
+
+    for col in df.columns:
+        missing = df[col].isna().sum()
+        duplicates = df[col].duplicated().sum()
+
+        recommendations = []
+        if missing:
+            recommendations.append("Handle missing values")
+
+        if duplicates:
+            recommendations.append("Check for duplicates")
+
+        if df[col].dtype == "object":
+            recommendations.append("Check duplicates")
+
+        if df[col].dtype == "Object":
+            recommendations.append("Check text standardization")
+
+        report.append({
+            "column": col,
+            "missing_count":missing,
+            "duplicate_count":duplicates,
+            "action_needed":
+                   "Yes" if recommendations else "NO",
+            "recommendations":
+            ", ".join(recommendations)}
+        )
+        final_report = pd.DataFrame(report)
+
+        return df
+
+def audit_numeric_columns(df):
+
+    report = []
+
+    numeric_cols = df.select_dtypes(
+        include="number"
+    ).columns
+
+    for col in numeric_cols:
+
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+
+        IQR = Q3 - Q1
+
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+
+        outliers = (
+            (df[col] < lower) |
+            (df[col] > upper)
+        ).sum()
+
+        report.append({
+            "column": col,
+            "outlier_count": outliers,
+            "outliers_present":
+                "YES" if outliers > 0 else "NO"
+        })
+
+    return pd.DataFrame(report)
+
 if __name__ == "__main__":
     set_identity(os.environ.get("EDGAR_IDENTITY"))
 
@@ -130,9 +205,11 @@ if __name__ == "__main__":
         prices_data=get_price_data(staging_data)
         dividend_data = get_dividend_data(staging_data)
         earning_data = get_earning_data(staging_data)
+        ticker_table=unified_ticker_table(prices_data, dividend_data, earning_data, staging_data)
+        audit_report = cleaning_stock_table(ticker_table)
+        print(audit_report)
+    
 
-        ticker_table=unified_ticker_table(prices_data, dividend_data,earning_data, staging_data)
-        print(ticker_table.head())
     except Exception as e:
         logger.error(f"Merging FAILED: {str(e)}")
 
