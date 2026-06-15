@@ -280,9 +280,6 @@ def fetch_adjusted_close(df):
     logger.info("Starting download for 30 batches...\n")
 
     for batch_number, tickers in enumerate(df, start=1):
-        #logger.info(f"Processing Batch {batch_number}/30 | Tickers:{len(tickers)}")
-        
-
         try:
             #Geting the two recent trading days
             last_two_days=recent_two_trading_days()
@@ -332,12 +329,13 @@ def fetch_adjusted_close(df):
         logger.info(f"\n== COMPLETED! {ticker_prices_df.shape[1]}")
     else:
         logger.info("No data was downloaded")
+        raise ValueError("No data was downloaded for any batch.")
     
     logger.info("\n Donwload Completed")
     logger.info(f" Successful batches: {len(ticker_results)}/30")
 
     if failed_batches:
-        logger.info(f" Failed batches: {failed_batches}")
+        logger.error(f" Failed batches: {failed_batches}")
     
     return ticker_prices_df
 
