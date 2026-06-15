@@ -16,7 +16,13 @@ from etl_pipeline.src.extract._fetch_stock_price import get_price_data
 from etl_pipeline.src.extract._fetch_dividend_data import get_dividend_data
 from etl_pipeline.src.extract._fetch_earnings_data import get_earning_data
 from etl_pipeline.src.schema.ticker_schemas import CURRENT_PRICE_FILE_SCHEMA
-from config.settings import DATA_COLS
+from config.settings import (
+    DATA_COLS,
+    STAGING_SUBDIR,
+    STAGING_FILEPATH
+)
+
+STAGING_SUBDIR.mkdir(parents=True, exist_ok=True)
 
 
 logger =get_logger(__name__)
@@ -162,37 +168,51 @@ def cleaning_stock_table(df):
 
         return df
 
-def audit_numeric_columns(df):
+def validating_stock_table(stock_df):
+    """
+    Validating and saving the output."""
+    
+    #Confirm it is None
+    if stock_df is None:
+        raise ValueError("No data to validate")
+    
+    #Confirm the data type 
+    if not isinstance(stock_df, pd.DataFrame):
+        raise TypeError(f" Expected a pandas dataframe got {type(stock_df).__name__}")
+    
+    #confirm the dataframe is empty
+    if stock_df.empty:
+        raise ValueError("The dataframe is empty")
+    
+    #confirm the number of rows
+    if stock_df.shape[0]<300:
+        raise ValueError(f"The dataframe has less than 300 rows which represent less than 100n tickers")
+    
+    #confirming the required columns
+    required_col = ['ticker', 'earnings_pershare', 'adj_close', 'dividend_per_share']
+    missing_col = []
 
-    report = []
+    for col in required_col:
+        if col not in stock_df.columns:
+            missing_col.append(stock_df)
 
-    numeric_cols = df.select_dtypes(
-        include="number"
-    ).columns
+    if missing_col:
+        raise ValueError(f" Missing columns are {missing_col}")
 
-    for col in numeric_cols:
-
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-
-        IQR = Q3 - Q1
-
-        lower = Q1 - 1.5 * IQR
-        upper = Q3 + 1.5 * IQR
-
-        outliers = (
-            (df[col] < lower) |
-            (df[col] > upper)
-        ).sum()
-
-        report.append({
-            "column": col,
-            "outlier_count": outliers,
-            "outliers_present":
-                "YES" if outliers > 0 else "NO"
-        })
-
-    return pd.DataFrame(report)
+    logger.info(f" VALIDATION OF STOCK TABLE COMPLETE")
+    # Saving the staging results to CSV file
+    fresh_stock_df = stock_df
+    fresh_stock_df.to_csv(
+        STAGING_FILEPATH,
+        index = False, 
+        date_format = "%Y-%m-%d",
+        float_format="%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+    logger.info(f"=====COMPLETE STOCK TABLE SAVED.")
+    return fresh_stock_df
+    
 
 if __name__ == "__main__":
     set_identity(os.environ.get("EDGAR_IDENTITY"))
@@ -206,8 +226,9 @@ if __name__ == "__main__":
         dividend_data = get_dividend_data(staging_data)
         earning_data = get_earning_data(staging_data)
         ticker_table=unified_ticker_table(prices_data, dividend_data, earning_data, staging_data)
-        audit_report = cleaning_stock_table(ticker_table)
-        print(audit_report)
+        clean_stock_table = cleaning_stock_table(ticker_table)
+        saved_stock_data = validating_stock_table(clean_stock_table)
+        print(saved_stock_data[:50])
     
 
     except Exception as e:
