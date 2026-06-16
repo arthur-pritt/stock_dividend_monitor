@@ -84,14 +84,57 @@ def classify_stock_table(validated_stock_table):
 
     return validated_stock_table
 
+def validated_segmented_tickers(segmented_tickers_df):
+    """
+    Validating outgoing data to the next phase.
+    """
+
+    #confirm if it is None
+    if segmented_tickers_df is None:
+        raise ValueError("No data to validate")
+    
+    #Confirm the pandas datatype
+    if not isinstance(segmented_tickers_df, pd.DataFrame):
+        raise TypeError(f" Expected pandas dataframe got {type(segmented_tickers_df).__name__}")
+    
+    #confirm the dataframe is empty
+    if segmented_tickers_df.empty:
+        raise ValueError(f" The dataframe is empty.")
+    
+    if segmented_tickers_df.shape[0]<300:
+        raise ValueError(f"The dataframe has less than 150 rows which represent less than 100 tickers")
+    
+    #checking the required columns
+    required_col = [
+        'ticker',
+        'earnings_pershare',
+        'dividend_per_share',
+        'adj_close',
+        'dividend_status',
+        'date']
+    missing_col=[]
+
+    for col in required_col:
+        if col not in segmented_tickers_df.columns:
+            missing_col.append(col)
+    
+    if missing_col:
+        raise ValueError(f" Missing columns are {missing_col}")
+    
+    logger.info(f" VALIDATION OF CLASSIFICATION TABLE COMPLETE")
+
+    return segmented_tickers_df
+    
+
 if __name__ == "__main__":
     try:
         logger.info("====Starting to classify the tickers===")
         ticker_table=get_stock_table()
         ticker_identity= validating_stock_data(ticker_table)
         segmented_tickers= classify_stock_table(ticker_identity)
-        print("\n====PIPELINE SUCCESS===")
-        print(segmented_tickers[50:100])
+        validated_tickers = validated_segmented_tickers(segmented_tickers)
+        print("\n==============PIPELINE SUCCESS===")
+        print(validated_tickers)
         
 
     except Exception as e:
