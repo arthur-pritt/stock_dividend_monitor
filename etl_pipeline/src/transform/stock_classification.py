@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 from config.logging_config import(
@@ -53,13 +54,45 @@ def validating_stock_data(staging_df):
     
     return staging_df
 
+def classify_stock_table(validated_stock_table):
+    """
+    A function that segments the companies that pay dividend and those that don't pay_dividend and returns a new column called dividend_status with
+    values such as 'pays_dividend' and 'no_dividend'
+    """
+
+    #Validation
+
+    if validated_stock_table is None:
+        raise ValueError(f" No data provided.")
+    
+    if not isinstance(validated_stock_table, pd.DataFrame):
+        raise TypeError(f" Expected a pandas dataframe, but got {type(validated_stock_table).__name__}")
+    
+    if validated_stock_table.empty:
+        raise ValueError(f" The dataframe is empty.")
+
+    #Segmenting tickers that pay dividend and non paying dividends
+    validated_stock_table['dividend_status']= np.where(
+        validated_stock_table['dividend_per_share'] < 0,
+        "invalid_dividend",
+        np.where(
+            validated_stock_table['dividend_per_share']== 0,
+            "no_dividend_payer",
+            "dividend_payer"
+        ) 
+    )
+
+    return validated_stock_table
+
 if __name__ == "__main__":
     try:
         logger.info("====Starting to classify the tickers===")
         ticker_table=get_stock_table()
         ticker_identity= validating_stock_data(ticker_table)
+        segmented_tickers= classify_stock_table(ticker_identity)
         print("\n====PIPELINE SUCCESS===")
-        print(ticker_identity)
+        print(segmented_tickers[50:100])
+        
 
     except Exception as e:
         logger.error(f"Classfication FAILED: {str(e)}")
