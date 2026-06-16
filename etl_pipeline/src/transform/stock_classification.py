@@ -1,16 +1,27 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
 
 
 from config.logging_config import(
     get_logger,
     setup_logging
 )
+from config.settings import (
+    PROCESSED_SUBDIR,
+    CLASSIFICATION_FILEPATH
+)
 
 from etl_pipeline.src.transform.staging import get_stock_table
 
+
+PROCESSED_SUBDIR.mkdir(parents=True, exist_ok=True)
 logger = get_logger(__name__)
 setup_logging()
+load_dotenv()
+
 
 def validating_stock_data(staging_df):
     """
@@ -124,17 +135,56 @@ def validated_segmented_tickers(segmented_tickers_df):
     logger.info(f" VALIDATION OF CLASSIFICATION TABLE COMPLETE")
 
     return segmented_tickers_df
+
+def get_classified_ticker_df():
+    """
+    Checks if the stock table contains fresh data and orchestrates the
+    entire stock classification file."""
     
+    logger.info("Starting to Fetch fresh segmented ticker data..")
+
+    if CLASSIFICATION_FILEPATH.is_file(): #Checks if the classification file table exists
+        last_modified = datetime.fromtimestamp(os.path.getatime(CLASSIFICATION_FILEPATH))
+        if datetime.now() - last_modified <= timedelta(days=1): #File-based frehsness checking
+            logger.info(f" File Found, loading fresh segmented stock data from the disk...")
+            return pd.read_csv(
+                CLASSIFICATION_FILEPATH,
+                dtype= {
+                    'name': str,
+                    'ticker': str,
+                    'market_cap': float,
+                    'adj_close': float,
+                    'dividend_per_share': float,
+                    'earnings_pershare': float,
+                    'dividend_status':str
+                }
+            )
+    #Fetch fresh
+    ticker_table = get_stock_table()
+    ticker_identity = validating_stock_data(ticker_table)
+    segmented_tickers= classify_stock_table(ticker_identity)
+    validated_tickers = validated_segmented_tickers(segmented_tickers)
+
+    #Saving the fresh segmented ticker data
+    fresh_segmented_data = validated_tickers
+    fresh_segmented_data.to_csv(
+        CLASSIFICATION_FILEPATH,
+        index=False,
+        float_format="%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+
+    logger.info("Pipeline Executed Successfuly. FRESJ segmented ticker data READY")
+    return fresh_segmented_data
+
 
 if __name__ == "__main__":
     try:
         logger.info("====Starting to classify the tickers===")
-        ticker_table=get_stock_table()
-        ticker_identity= validating_stock_data(ticker_table)
-        segmented_tickers= classify_stock_table(ticker_identity)
-        validated_tickers = validated_segmented_tickers(segmented_tickers)
+        segmented_tickers= get_classified_ticker_df()
         print("\n==============PIPELINE SUCCESS===")
-        print(validated_tickers)
+        print(segmented_tickers)
         
 
     except Exception as e:
