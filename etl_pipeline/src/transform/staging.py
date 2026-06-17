@@ -199,7 +199,6 @@ def validating_stock_table(stock_df):
         raise ValueError(f" Missing columns are {missing_col}")
 
     logger.info(f" VALIDATION OF STOCK TABLE COMPLETE")
-    # Saving the staging results to CSV file
     return stock_df
 
 def get_stock_table():
@@ -212,7 +211,7 @@ def get_stock_table():
 
 
     if STAGING_FILEPATH.is_file(): #Check if the complete stock table file exists
-        last_modified = datetime.fromtimestamp(os.path.getatime(STAGING_FILEPATH))
+        last_modified = datetime.fromtimestamp(os.path.getmtime(STAGING_FILEPATH))
         if datetime.now()-last_modified <= timedelta(days=1): #File-based freshness checking
             logger.info(f"File Found, loading fresh stock data from the disk....")
             return pd.read_csv(
@@ -248,7 +247,6 @@ def get_stock_table():
 
     logger.info("Stock Table Executed Successfuly. FRESH Stock Table Data READY.")
     return fresh_stock_data
-    
 
 if __name__ == "__main__":
     set_identity(os.environ.get("EDGAR_IDENTITY"))
