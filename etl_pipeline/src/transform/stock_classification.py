@@ -11,7 +11,8 @@ from config.logging_config import(
 )
 from config.settings import (
     PROCESSED_SUBDIR,
-    CLASSIFICATION_FILEPATH
+    CLASSIFICATION_FILEPATH,
+    STAGING_FILEPATH
 )
 
 from etl_pipeline.src.transform.staging import get_stock_table
@@ -83,15 +84,28 @@ def classify_stock_table(validated_stock_table):
         raise ValueError(f" The dataframe is empty.")
 
     #Segmenting tickers that pay dividend and non paying dividends
-    validated_stock_table['dividend_status']= np.where(
-        validated_stock_table['dividend_per_share'] < 0,
+    conditions = [
+    validated_stock_table["dividend_per_share"] < 0,
+    validated_stock_table["dividend_per_share"] == 0,
+    validated_stock_table["dividend_per_share"] > 0
+    ]
+    
+    choices = [
         "invalid_dividend",
-        np.where(
-            validated_stock_table['dividend_per_share']== 0,
-            "no_dividend_payer",
-            "dividend_payer"
-        ) 
-    )
+        "no_dividend_payer",
+        "dividend_payer"
+        ]
+    validated_stock_table["dividend_status"] = np.select(
+        conditions,
+        choices,
+        default="unknown"
+        )
+    logger.info("\n==================Dividend status row counts===============")
+    logger.info(
+        validated_stock_table["dividend_status"].value_counts())
+    logger.info("Unique ticker counts by dividend status:")
+    logger.info(
+        validated_stock_table.groupby("dividend_status")["ticker"].nunique())
 
     return validated_stock_table
 
@@ -113,7 +127,7 @@ def validated_segmented_tickers(segmented_tickers_df):
         raise ValueError(f" The dataframe is empty.")
     
     if segmented_tickers_df.shape[0]<300:
-        raise ValueError(f"The dataframe has less than 150 rows which represent less than 100 tickers")
+        raise ValueError(f"The dataframe has less than 150 rows which represent less than 150 unique tickers")
     
     #checking the required columns
     required_col = [
@@ -143,41 +157,38 @@ def get_classified_ticker_df():
     
     logger.info("Starting to Fetch fresh segmented ticker data..")
 
-    if CLASSIFICATION_FILEPATH.is_file(): #Checks if the classification file table exists
-        last_modified = datetime.fromtimestamp(os.path.getatime(CLASSIFICATION_FILEPATH))
-        if datetime.now() - last_modified <= timedelta(days=1): #File-based frehsness checking
-            logger.info(f" File Found, loading fresh segmented stock data from the disk...")
-            return pd.read_csv(
-                CLASSIFICATION_FILEPATH,
-                dtype= {
-                    'name': str,
-                    'ticker': str,
-                    'market_cap': float,
-                    'adj_close': float,
-                    'dividend_per_share': float,
-                    'earnings_pershare': float,
-                    'dividend_status':str
-                }
+    staging_modified =os.path.getmtime(STAGING_FILEPATH)
+    classification_modified = os.path.getmtime(CLASSIFICATION_FILEPATH)
+
+    if classification_modified < staging_modified:
+        logger.info("Cache missing or stale. Rebuilding classification dataset.")
+        #Fetch fresh
+        ticker_table = get_stock_table()
+        ticker_identity = validating_stock_data(ticker_table)
+        segmented_tickers= classify_stock_table(ticker_identity)
+        validated_tickers = validated_segmented_tickers(segmented_tickers)
+        #Saving the fresh segmented ticker data
+        fresh_segmented_data = validated_tickers
+        fresh_segmented_data.to_csv(
+            CLASSIFICATION_FILEPATH,
+            index=False,
+            float_format="%.2f",
+            na_rep="NA",
+            encoding="utf-8"
             )
-    #Fetch fresh
-    ticker_table = get_stock_table()
-    ticker_identity = validating_stock_data(ticker_table)
-    segmented_tickers= classify_stock_table(ticker_identity)
-    validated_tickers = validated_segmented_tickers(segmented_tickers)
-
-    #Saving the fresh segmented ticker data
-    fresh_segmented_data = validated_tickers
-    fresh_segmented_data.to_csv(
-        CLASSIFICATION_FILEPATH,
-        index=False,
-        float_format="%.2f",
-        na_rep="NA",
-        encoding="utf-8"
-    )
-
-    logger.info("Pipeline Executed Successfuly. FRESJ segmented ticker data READY")
-    return fresh_segmented_data
-
+        return fresh_segmented_data
+    logger.info("Classification is fresh. Loading from disk...")
+    fresh_df= pd.read_csv(CLASSIFICATION_FILEPATH,
+                       dtype={'name': str,
+                              'ticker': str,
+                              'market_cap': float,
+                              'adj_close': float,
+                              'dividend_per_share': float,
+                              'earnings_pershare': float,
+                              'dividend_status': str
+                              })
+    logger.info(fresh_df.groupby("dividend_status")["ticker"].nunique())
+    return fresh_df
 
 if __name__ == "__main__":
     try:
@@ -185,7 +196,6 @@ if __name__ == "__main__":
         segmented_tickers= get_classified_ticker_df()
         print("\n==============PIPELINE SUCCESS===")
         print(segmented_tickers)
-        
 
     except Exception as e:
         logger.error(f"Classfication FAILED: {str(e)}")
