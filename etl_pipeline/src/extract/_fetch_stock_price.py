@@ -414,7 +414,7 @@ def validating_clean_tickers(clean_df):
     
     return clean_df
 
-def get_price_data():
+def get_price_data(nasdaq_list):
     """
     checks if data is fresh and orchestrates the entire stoc price file."""
 
@@ -435,13 +435,9 @@ def get_price_data():
                     "ticker":str,
                     "adj_close":float,}
                     )
-        
-    
-    # Gather the raw material
-    final_list = get_nasdaq_list()
 
     # Fetching stock price process
-    tickers = validate_tickers(final_list)
+    tickers = validate_tickers(nasdaq_list)
     valid_days, _= count_nyse_trading_days('2025-01-01','2026-07-10',inclusive=True)
     candidate_days = recent_two_trading_days()
     batches= generate_batches(tickers)
@@ -465,7 +461,8 @@ def get_price_data():
 
 if __name__ == "__main__":
     try:
-        stock_price_data = get_price_data()
+        data_list=get_nasdaq_list()
+        stock_price_data = get_price_data(data_list)
         print("\n=====PIPELINE SUCCESS====")
         print(stock_price_data)
 

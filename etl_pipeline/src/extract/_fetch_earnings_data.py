@@ -338,7 +338,7 @@ def validate_earnings_tickers(earning_df):
 
     return earning_df
 
-def get_earning_data():
+def get_earning_data(nasdaq_list):
     """
     checks for fresh earning data and orchestrates the main earning data file."""
 
@@ -370,12 +370,8 @@ def get_earning_data():
                     "year" : int 
                 }
             )
-
-    # Gather all the raw materials
-    final_list= get_nasdaq_list()
-
     # Fetching earning data prices
-    tickers = validate_incoming_tickers(final_list)
+    tickers = validate_incoming_tickers(nasdaq_list)
     current_quarter = get_current_quarter(last_quarter=[1,2026])
     cik_batches = generate_cik_batches(tickers)
     earnings_data = get_latest_earnings_data(cik_batches,current_quarter)
@@ -397,7 +393,8 @@ def get_earning_data():
 if __name__ == "__main__":
     
     try:
-        earning_data = get_earning_data()
+        data_list = get_nasdaq_list()
+        earning_data = get_earning_data(data_list)
         print("\n====PIPELINE SUCCESS====")
         print(earning_data)
 
