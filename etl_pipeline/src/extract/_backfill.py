@@ -5,6 +5,7 @@ import time
 import pandas_market_calendars as mcal
 import random
 from itertools import islice
+from datetime import  datetime
 
 
 from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA
@@ -16,12 +17,16 @@ from config.logging_config import(
     setup_logging
 )
 from config.settings import (
-    DATA_COLS
+    DATA_COLS,
+    RAW_SUBDIR,
+    BACKFILL_FILEPATH
+    
 )
 
 #Getting the logger for the module
 logger=get_logger(__name__)
 setup_logging()
+RAW_SUBDIR.mkdir(parents=True, exist_ok=True)
 
 def count_trading_days(start_date, end_date, calendar_name: str = "NYSE") -> int:
     """Count actual NYSE trading days between two dates (inclusive)."""
@@ -117,11 +122,14 @@ def fetch_raw_data(df):
                 # Reset index to turn MultiIndex (symbol, date) into columns
                 batch_df = batch_df.reset_index()
 
+                #rename symbol to ticker column
+                batch_df= batch_df.rename(columns={"symbol":"ticker"})
+
                 # Force date column to be clean UTC-aware (this kills mixed timezone errors)
                 batch_df['date'] = pd.to_datetime(batch_df['date'], utc=True)
 
                 # Keep only the columns you need for cleaning
-                keep_cols = ['symbol', 'date', 'adjclose', 'open', 'high', 'low', 'close', 'volume']
+                keep_cols = ['ticker', 'date', 'adjclose', 'open', 'high', 'low', 'close', 'volume']
                 batch_df = batch_df[[c for c in keep_cols if c in batch_df.columns]]
 
                 all_batches.append(batch_df)
@@ -151,10 +159,10 @@ def fetch_raw_data(df):
 
     # Final cleanup
     master_df = master_df.dropna(subset=['adjclose'])
-    master_df = master_df.sort_values(['symbol', 'date'])
+    master_df = master_df.sort_values(['ticker', 'date'])
 
     logger.info(f"fetch_raw_data completed → {len(master_df)} rows, "
-                f"{master_df['symbol'].nunique()} unique tickers")
+                f"{master_df['ticker'].nunique()} unique tickers")
 
     return master_df
 
@@ -182,7 +190,7 @@ def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
     df_clean.columns = [str(c).lower().strip().replace(" ", "_") for c in df_clean.columns]
 
     # Safety check
-    required_cols = {'date', 'symbol', 'adjclose',}
+    required_cols = {'date', 'ticker', 'adjclose',}
     if not required_cols.issubset(df_clean.columns):
         return None, {"is_empty": True, "error": "Missing required columns"}
 
@@ -205,7 +213,7 @@ def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
     # --- 4. MINIMAL RESULTS ---
     results = {
         "is_empty": False,
-        "unique_tickers": int(df_clean['symbol'].nunique()),
+        "unique_tickers": int(df_clean['ticker'].nunique()),
         "date_range": f"{min_date.date()} to {max_date.date()}"
     }
 
@@ -237,7 +245,7 @@ def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
     df_audit = df.copy()
 
     # --- 1. BASIC CHECKS ---
-    required_cols = {'date', 'symbol'}
+    required_cols = {'date', 'ticker'}
     if not required_cols.issubset(df_audit.columns):
         return None, {"is_empty": True, "error": "Missing required columns"}
 
@@ -255,7 +263,7 @@ def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
 
     # --- 3. COUNT ACTUAL DAYS PER TICKER ---
     ticker_counts = (
-        df_audit.groupby('symbol')['date']
+        df_audit.groupby('ticker')['date']
         .nunique()
         .reset_index(name='actual_days')
     )
@@ -272,14 +280,14 @@ def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
     # --- 5. MERGE BACK TO DATA ---
     df_audit = df_audit.merge(
         ticker_counts,
-        on='symbol',
+        on='ticker',
         how='left'
     )
 
     # --- 6. BUILD RESULTS (FOCUSED) ---
     results = {
         "is_empty": False,
-        "unique_tickers": int(ticker_counts['symbol'].nunique()),
+        "unique_tickers": int(ticker_counts['ticker'].nunique()),
         "expected_trading_days": int(expected_days),
         "date_range": f"{min_date.date()} to {max_date.date()}",
         "avg_coverage_pct": float(ticker_counts['coverage_pct'].mean()),
@@ -309,7 +317,7 @@ def validate_data_out(df):
         raise ValueError(f" The dataframe has less than 6830 rows which rep the 110 tickers. got: {df.shape[0]}")
     
     #confirm the required columns
-    required_col= ['symbol', 'date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
+    required_col= ['ticker','date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
     missing_col=[]
     for col in required_col:
         if col not in df.columns:
@@ -321,15 +329,37 @@ def validate_data_out(df):
     logger.info(f"VALIDATION OF HISTORICAL DATA COMPLETE")
     return df
 
-def get_historical_data(nasdaq_list):
+def get_historical_data():
     """
     Facade function that orchestrates the entire  historical data on
     counting, fetching, cleaning, auditting and validating."""
 
     logger.info("Starting to collect Historical Prices...")
     
+    if BACKFILL_FILEPATH.is_file(): #Checking if the file exists
+        end_date = datetime.strptime(
+            _get_last_63_trading_days()[-1], #Most  recent trading day
+            "%Y-%m-%d").date()
+        
+        #recent_date= end_date.strftime("%Y-%m-%d")
+
+        existing=pd.read_csv(BACKFILL_FILEPATH, usecols=["date"], parse_dates=["date"])
+        latest_date_in_the_backfill = existing["date"].max().date()
+
+        if latest_date_in_the_backfill >= end_date:
+            logger.info("File Found, loading fresh historical data from the disk")
+            return pd.read_csv(
+                BACKFILL_FILEPATH,
+                parse_dates=["date"],
+                dtype={
+                    'ticker': str,
+                    'adjclose': float,
+                    'volume': float,
+                    'actual_days': int 
+                }
+            )
     #1. Extract + Prep
-    final_list = nasdaq_list
+    final_list = get_nasdaq_list()
 
     #2.Fetch dividend + Process
     tickers = validate_tickers(final_list)
@@ -337,15 +367,27 @@ def get_historical_data(nasdaq_list):
     clean_data, data_results = clean_and_validate(historical_data)
     audited_data, audit_results = audit_raw_data(clean_data)
     final_historical_data =validate_data_out(audited_data)
+
+    #Saving Fresh Historical_data
+    fresh_historical_data = final_historical_data
+    fresh_historical_data.to_csv(
+        BACKFILL_FILEPATH,
+        index=False,
+        date_format="%Y-%m-%d",
+        float_format="%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+    
     logger.info("Pipeline Executed successfully. Historical Data is ready")
 
-    return final_historical_data
+    return fresh_historical_data
 
 
 if __name__ == "__main__":
     try:
         data_list=get_nasdaq_list()
-        historical_data = get_historical_data(data_list)
+        historical_data = get_historical_data()
         print("\n=====PIPELINE SUCCESS===")
         print(historical_data)
 

@@ -336,21 +336,9 @@ def validate_earnings_tickers(earning_df):
 
     logger.info(f"VALIDATION OF EARNINGS PER SHARE DILUTED COMPLETED")
 
-    # Saving the earnings per share data to CSV
-    logger.info(f"======Starting to save dividend data results in a CSV file")
-    earning_share_data= earning_df
-    earning_share_data.to_csv(
-        EARNINGS_FILEPATH,
-        index= False, 
-        date_format="%Y-%m-%d",
-        float_format="%.2f",
-        na_rep="NA",
-        encoding="utf-8"
-    )
-    logger.info(f"====EARNING PER SHARE DATA SAVED===")
-    return earning_share_data
+    return earning_df
 
-def get_earning_data(nasdaq_list):
+def get_earning_data():
     """
     checks for fresh earning data and orchestrates the main earning data file."""
 
@@ -384,7 +372,7 @@ def get_earning_data(nasdaq_list):
             )
 
     # Gather all the raw materials
-    final_list= nasdaq_list
+    final_list= get_nasdaq_list()
 
     # Fetching earning data prices
     tickers = validate_incoming_tickers(final_list)
@@ -409,8 +397,7 @@ def get_earning_data(nasdaq_list):
 if __name__ == "__main__":
     
     try:
-        data_list = get_nasdaq_list()
-        earning_data = get_earning_data(data_list)
+        earning_data = get_earning_data()
         print("\n====PIPELINE SUCCESS====")
         print(earning_data)
 

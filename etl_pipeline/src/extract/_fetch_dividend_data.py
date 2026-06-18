@@ -363,7 +363,7 @@ def validate_dividend_tickers(dividend_df):
     logger.info(f"VALIDATION OF DIVIDEND PER SHARE COMPLETED")
     return dividend_df
 
-def get_dividend_data(nasdaq_list):
+def get_dividend_data():
     """Checks if data is fresh and orchestrates the entire dividend file"""
 
     if DIVIDENDS_FILEPATH.is_file():  #Checking if the file exists first
@@ -396,7 +396,7 @@ def get_dividend_data(nasdaq_list):
             )
 
     #Gather raw materials
-    final_list = nasdaq_list
+    final_list = get_nasdaq_list
 
     # Fetching dividend prices process
     tickers = validate_incoming_tickers(final_list)
@@ -421,8 +421,7 @@ def get_dividend_data(nasdaq_list):
 if __name__ == "__main__":
 
     try:
-        data_list=get_nasdaq_list()
-        dividend_data = get_dividend_data(data_list)
+        dividend_data = get_dividend_data()
         print("\n=====PIPELINE SUCCESS===")
         print(dividend_data[:50])
 

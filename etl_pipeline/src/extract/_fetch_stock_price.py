@@ -414,7 +414,7 @@ def validating_clean_tickers(clean_df):
     
     return clean_df
 
-def get_price_data(nasdaq_list):
+def get_price_data():
     """
     checks if data is fresh and orchestrates the entire stoc price file."""
 
@@ -438,7 +438,7 @@ def get_price_data(nasdaq_list):
         
     
     # Gather the raw material
-    final_list = nasdaq_list
+    final_list = get_nasdaq_list()
 
     # Fetching stock price process
     tickers = validate_tickers(final_list)
@@ -465,8 +465,7 @@ def get_price_data(nasdaq_list):
 
 if __name__ == "__main__":
     try:
-        data_list = get_nasdaq_list()
-        stock_price_data = get_price_data(data_list)
+        stock_price_data = get_price_data()
         print("\n=====PIPELINE SUCCESS====")
         print(stock_price_data)
 
