@@ -11,6 +11,10 @@ from etl_pipeline.src.schema.ticker_schemas import TICKER_SCHEMA,CURRENT_PRICE_F
 from etl_pipeline.src.extract._smart_session import RobustCurlSession
 from config.logging_config import setup_logging
 from etl_pipeline.src.extract._clean_nasdaq_list import get_nasdaq_list
+from etl_pipeline.src.transform._load_save_state import (
+    load_pipeline_state,
+    save_pipeline_state)
+from etl_pipeline.src.transform._mandatory_retry_window import is_cooling_off
 
 from config.logging_config import get_logger
 from config.settings import (
@@ -420,44 +424,99 @@ def get_price_data(nasdaq_list):
 
     logger.info("Starting to Fetch the Current Closing DAY prices=========")
 
+    #Load current tracking state
+    state= load_pipeline_state()
+
+    # Immediate circuit breaker check
+    if is_cooling_off(state):
+        if DAILY_PRICE_FILEPATH.is_file():
+            logger.info("Returning existing local file during cool-off period")
+            return pd.read_csv(DAILY_PRICE_FILEPATH, parse_dates=["date"])
+        
+        else:
+            logger.error("Pipeline is cooling off but not local price file exists to fall back on")
+            return None 
+        
+    #Initialize target variable as None
+    validated_stock_data = None 
+    total_expected_tickers = len(nasdaq_list)
+
     if DAILY_PRICE_FILEPATH.is_file(): #Checking if the file exists
         last_two= recent_two_trading_days()
         last_trading_date = last_two[-1].date() #Most recent days
-        #reading the whole date column ONLY
-        existing =pd.read_csv(DAILY_PRICE_FILEPATH, usecols=["date"], parse_dates=["date"])
-        latest_date_in_the_file =existing["date"].max().date()
+
+        #Read date and adj_close together to minimize disk I/O
+        scan_df =pd.read_csv(DAILY_PRICE_FILEPATH, usecols=["date", "adj_close"], parse_dates=["date"])
+        latest_date_in_the_file =scan_df["date"].max().date()
+        
+        #Check condition 1: Is it fresh?
         if latest_date_in_the_file >=last_trading_date:
-            logger.info("File Found, loading fresh daily stock data from the disk....")
-            return pd.read_csv(
-                DAILY_PRICE_FILEPATH,
-                parse_dates=["date"],
-                dtype={
-                    "ticker":str,
-                    "adj_close":float,}
-                    )
+            #Check condition 2: is the quality good?
+            nan_ticker_count = scan_df['adj_close'].isna().sum()
+            nan_pct = round(
+                scan_df['adj_close'].isna().mean()*100,2
+            )
 
-    # Fetching stock price process
-    tickers = validate_tickers(nasdaq_list)
-    valid_days, _= count_nyse_trading_days('2025-01-01','2026-07-10',inclusive=True)
-    candidate_days = recent_two_trading_days()
-    batches= generate_batches(tickers)
-    ticker_prices=fetch_adjusted_close(batches)
-    clean_prices=clean_ticker_prices(ticker_prices)
-    validated_stock_data = validating_clean_tickers(clean_prices)
+            if nan_pct <= 10.00:
+                logger.info(f"Data Quality Passed: Missing data is {nan_pct}%. Loading fule file from the disk...")
 
-    #Saving the fresh data
-    fresh_stock_data= validated_stock_data
-    fresh_stock_data.to_csv(
-        DAILY_PRICE_FILEPATH,
-        index= False,
-        date_format="%Y-%m-%d",
-        float_format ="%.2f",
-        na_rep= "NA",
-        encoding="utf-8"
-    )
+                #Load full data from disk
+                validated_stock_data = pd.read_csv(
+                    DAILY_PRICE_FILEPATH,
+                    parse_dates=["date"],
+                    dtype={"ticker" : str, "adj_close": float}
+                )
+
+            else:
+                logger.warning(f" File is fresh, but data quality failed ({nan_pct}% missing.)")
+
+        else:
+            logger.info(f" File exists but data is out of date.")
+
+    logger.info(f" Fetching fresh daily stock prices from API...")
+    try:
+        # Fetching stock price process
+        tickers = validate_tickers(nasdaq_list)
+        valid_days, _= count_nyse_trading_days('2025-01-01','2026-07-10',inclusive=True)
+        candidate_days = recent_two_trading_days()
+        batches= generate_batches(tickers)
+        ticker_prices=fetch_adjusted_close(batches)
+        clean_prices=clean_ticker_prices(ticker_prices)
+        validated_stock_data = validating_clean_tickers(clean_prices)
+
+        # calculate post-fetch metrics
+        nan_ticker_count= int(validated_stock_data['adj_close'].isna().sum())
+        success_count= total_expected_tickers- nan_ticker_count
+
+        # Determine specific Metadata Scenario
+        if nan_ticker_count == 0:
+            status = "successful_run"
+        elif nan_ticker_count == total_expected_tickers:
+            status = "failed"
+        else:
+            status = "partial_nan"
+            
+        save_pipeline_state(status, nan_ticker_count, success_count)
+        
+        #Saving the fresh data
+        logger.info(f" Saving fresh data to {DAILY_PRICE_FILEPATH}")
+
+
+        validated_stock_data.to_csv(
+            DAILY_PRICE_FILEPATH,
+            index= False,
+            date_format="%Y-%m-%d",
+            float_format ="%.2f",
+            na_rep= "NA",
+            encoding="utf-8")
+    except Exception as e:
+        logger.critical(f"API Fetch pipeline collapsed with error: {e}")
+        # Complete failure state fallback
+        save_pipeline_state("failed", nan_count=total_expected_tickers, success_count=0)
+        raise e
     
     logger.info("Pipeline Executed successfuly. FRESH Stock Price Data is READY")
-    return fresh_stock_data
+    return validated_stock_data
 
 if __name__ == "__main__":
     try:
