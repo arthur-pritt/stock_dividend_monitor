@@ -42,3 +42,15 @@ def split_dividend_status(classified_csv: pathlib.Path)-> tuple[pd.DataFrame, pd
 
     raise NotImplementedError("Skeleon validated. Logic pending.")
 
+if __name__ == "__main__":
+    try:
+        logger.info("=====Starting to split dividend_status column")
+        dividend_path = get_classified_ticker_df()
+        split_dividend = validating_classified_stock(dividend_path)
+        two_dataframes = split_dividend_status(split_dividend)
+
+    except Exception as e:
+        logger.error(f"Splitting FAILED: {str(e)}")
+
+
+
