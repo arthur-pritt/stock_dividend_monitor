@@ -6,7 +6,7 @@
 
 ## Context
 
-The stock-dividend_monitor pipelines depend on three files (fetch_stock_file, staging file, and classification file) for the business logic. 
+The stock-dividend_monitor pipeline depend on three files (fetch_stock_file, staging file, and classification file) for the business logic. 
 
 Initially, I thought having these files behave independently would produce fresh data. Independently, each file checks against its own last modified time and fetches fresh data. This produced silent bugs, technical debts, and operational risks:
 

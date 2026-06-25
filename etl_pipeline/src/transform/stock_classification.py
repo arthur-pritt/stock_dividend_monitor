@@ -19,8 +19,8 @@ from etl_pipeline.src.transform.staging import get_stock_table
 
 
 PROCESSED_SUBDIR.mkdir(parents=True, exist_ok=True)
-logger = get_logger(__name__)
 setup_logging()
+logger = get_logger(__name__)
 load_dotenv()
 
 
@@ -62,7 +62,7 @@ def validating_stock_data(staging_df):
             missing_col.append(col)
     
     if missing_col:
-        raise ValueError(f" The data is missing key columns{required_cols}")
+        raise ValueError(f" The data is missing key columns{missing_col}")
     
     return staging_df
 

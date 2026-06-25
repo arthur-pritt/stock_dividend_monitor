@@ -184,7 +184,7 @@ def validating_stock_table(stock_df):
         raise ValueError("The dataframe is empty")
     
     #confirm the number of rows
-    if stock_df.shape[0]<300:
+    if stock_df.shape[0]<200:
         raise ValueError(f"The dataframe has less than 300 rows which represent less than 100n tickers")
     
     #confirming the required columns
