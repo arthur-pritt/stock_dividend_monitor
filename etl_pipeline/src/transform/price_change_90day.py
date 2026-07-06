@@ -69,79 +69,37 @@ def validating_two_dataframes(df,
     return True 
 
 
-def price_change_calculation(classified_data, historical_data):
-    #historical_data,
+def price_change_calculation(classified_data, historical_data)-> pd.DataFrame:
     """
-    Calculate how much a stock has moved in the last 90 days.
+    Calculate how much a stock has moved in the last 90 days and add a watchlist_status column.
     """
 
-    #Take the most recent row per ticker from classified data from the data.
-    classified_data = (
-        classified_data
-        .sort_values("date")
-        .drop_duplicates(subset='ticker', keep="last")
-    )
+    #For classified_data, grab the row with the maximum date max(date) per ticker
 
-    logger.info(classified_df)
+    #For historical data, grab the row with the minimum date min(date) per ticker
 
-    # Take the oldest row per ticker from backfill.py
+    #Column renaming in both classified_data & historical_data
+    #For classified_data, adj_close to current_adjclose, date to current_date
+    #For historical_data, adjclose to historical_adjclose, date to historical_date
 
-    historical_data = (
-        historical_data
-        .sort_values("date")
-        .drop_duplicates(subset='ticker', keep='last')
-    )
+    #Dropping of columns in the historical_date such as open, high, low, close, volume, actual_days,coverage_pct, and is flagged
 
-    # Renaming columbs in both files
+    #DATA QUALITY GATE:Zero values/10% error budget. If the percentage of zero values exists in the historical_data and classified_data and is more than 10
+    #%, the pipeline stops. If less than that, the pipeline logs a warning and saves the bad data to zero_tickers.csv.
+    #Bad rows dropped.
 
-    classified_data  = classified_data.rename(columns={
-        "adj_close" : "current_adjclose"
-    })
+    #DATA QUALITY GATE:Identify which tickers exist in one slice but not the other. Export those discrepancies to failed_joined_tickers.csv
+    #Perform inner join between historical_data and classified_data.some entries here may be tickers already excluded upstream for zero-price — check zero_tickers.csv first
 
-    historical_data = historical_data.rename(columns={
-        "adjclose" : "historical_adjclose"
-    })
+    #DATA QUALITY GATE: Calculate the delta between current_date and historical_date. Identify rows outside your acceptable calendar day threshold, log them to dropped_tickers.csv, and filter them out.
+    #if the difference between min(date) and max(date) is less than 85 or 95 dats. And create actual_days column
 
-    #dropping columns in the backfill.py file
-    historical_data = historical_data.drop(columns=[
-        'open','high','low','close','volume',
-        'coverage_pct','is_flagged'
-    ])
+    #Math & Logic Engine: Safely compute pct_change (since zeros are gone) and apply your conditional labeling for the watchlist_status
 
-    dfs=[
-        classified_data,
-        historical_data
-    ]
+    #Output: ticker, marketcap,dividend_status,historical_date, historical_adjclose, current_date, current_adjclose, actual_days
+    #dividend_per_share, pct_change, watchlist_status
 
-    #Prehandle the schemas and data types before reductions begins
-    #Ensure the join key is strictly the same across all the dataset since it is a string to prevent bugs
-
-    def sanitize_dataframe(df):
-        if 'ticker' in df.columns:
-            df['ticker'] = df['ticker'].astype(str)
-
-        return df 
-    
-    #Apply sanitization to all dataframes
-    price_change_df= [sanitize_dataframe(df) for df in dfs]
-
-    try:
-        price_change_table = reduce(
-            lambda left, right: pd.merge(
-                left,
-                right, 
-                on= 'ticker',
-                how='left'
-            ),
-            price_change_df
-        )#Clean up any duplicated columns generated during the loop
-        price_change_table= price_change_table.loc[:, ~price_change_table.columns.str.endswith('_dup')]
-
-    except TypeError:
-        logger.error("Error: The dataframe list was empty")
-        price_change_table= pd.DataFrame() #Fallback
-
-    return price_change_table
+    pass 
 
 
 if __name__ == "__main__":
@@ -154,6 +112,10 @@ if __name__ == "__main__":
 
     for name, df in dataframes.items():
         validating_two_dataframes(df,name)
+
+    print(historical_df.head(10))
+    print("Classified")
+    print(classified_df.head(10))
 
     merged_table = price_change_calculation(classified_df,historical_df)
     print(merged_table)
