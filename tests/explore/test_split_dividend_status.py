@@ -14,7 +14,7 @@ def test_split_dividend_status_happy_path(tmp_path: pathlib.Path):
     #2.Arrange: Building the actual dataframe
     mock_dict={
         'ticker': ['AAPL','MSFT'],
-        'dividend_status':['dividend_paying','dividend_paying']
+        'dividend_status':['dividend_payer','dividend_payer']
     }
     df_mock=pd.DataFrame(mock_dict)
 
@@ -47,8 +47,8 @@ def test_split_dividend_status_leaking_path(tmp_path : pathlib.Path):
             'AAPL','NVDA','GOOG','NRG','MSFT','AMZN','TSLA','JPM','V','WMT'
         ],
         'dividend_status':[
-            'dividend_paying','dividend_paying','dividend_paying','dividend_paying','dividend_paying','dividend_paying','dividend_paying', 'dividend_paying',
-            'no_dividend_paying', None
+            'dividend_payer','dividend_payer','dividend_payer','dividend_payer','dividend_payer','dividend_payer','dividend_payer', 'dividend_payer',
+            'no_dividend_payer', None
         ]
     }
 
@@ -89,9 +89,9 @@ def test_split_dividend_status_poison_pill(tmp_path : pathlib.Path):
             'AAPL','NVDA','GOOG','NRG','MSFT','AMZN','TSLA','WMT','V', 'META','LLY','XOM','JNJ','MA','COST','MU',
             'BAC','ORCL','ABBV','HD'],
         'dividend_status':[
-            'dividend_paying','dividend_paying', 'dividend_paying','dividend_paying','dividend_paying','dividend_paying','dividend_paying','dividend_paying',
-            'dividend_paying','dividend_paying', 'dividend_paying', 'dividend_paying','dividend_paying', None, None, None,
-            'dividend_paying', 'non_dividend_paying', 'non_dividend_paying', 'non_dividend_paying']
+            'dividend_payer','dividend_payer', 'dividend_payer','dividend_payer','dividend_payer','dividend_payer','dividend_payer','dividend_payer',
+            'dividend_payer','dividend_payer', 'dividend_payer', 'dividend_payer','dividend_payer', None, None, None,
+            'dividend_payer', 'non_dividend_payer', 'non_dividend_payer', 'non_dividend_payer']
     }
 
     mock_df = pd.DataFrame(mock_dict)
