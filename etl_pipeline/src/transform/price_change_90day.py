@@ -69,10 +69,15 @@ def validating_two_dataframes(df,
     return True 
 
 
-def price_change_calculation(classified_data, historical_data)-> pd.DataFrame:
+def price_change_calculation(
+        df,
+        name
+)-> pd.DataFrame:
     """
     Calculate how much a stock has moved in the last 90 days and add a watchlist_status column.
     """
+
+    #Light validation of the two dataframes(df isNone, df isinstance, dfempty).
 
     #For classified_data, grab the row with the maximum date max(date) per ticker
 
@@ -99,7 +104,7 @@ def price_change_calculation(classified_data, historical_data)-> pd.DataFrame:
     #Output: ticker, marketcap,dividend_status,historical_date, historical_adjclose, current_date, current_adjclose, actual_days
     #dividend_per_share, pct_change, watchlist_status
 
-    pass 
+    raise NotImplementedError("Skeleton validated. Logic pending....")
 
 
 if __name__ == "__main__":
