@@ -346,7 +346,14 @@ def get_historical_data():
         existing=pd.read_csv(BACKFILL_FILEPATH, usecols=["date"], parse_dates=["date"])
         latest_date_in_the_backfill = existing["date"].max().date()
 
-        if latest_date_in_the_backfill >= end_date:
+        # Allowing for a 1- trading-day publish lag from the data provider
+        trading_days= mcal.get_calendar("NYSE").valid_days(
+            start_date=(end_date-pd.Timedelta(days=10)),
+            end_date=end_date
+        )
+        acceptable_min_date = trading_days[-2].date() #Yesterday's trading day, not today's
+
+        if latest_date_in_the_backfill >= acceptable_min_date:
             logger.info("File Found, loading fresh historical data from the disk")
             return pd.read_csv(
                 BACKFILL_FILEPATH,
@@ -386,15 +393,12 @@ def get_historical_data():
 
 if __name__ == "__main__":
     try:
-        data_list=get_nasdaq_list()
         historical_data = get_historical_data()
         print("\n=====PIPELINE SUCCESS===")
-        print(historical_data)
+        print(historical_data[0:50])
+        print(historical_data[50:100])
 
     except Exception as e:
         logger.error(f" Pipeline Failed: {str(e)}")
-
-    
-
 
     

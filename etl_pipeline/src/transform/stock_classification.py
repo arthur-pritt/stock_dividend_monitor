@@ -167,6 +167,7 @@ def get_classified_ticker_df():
         ticker_identity = validating_stock_data(ticker_table)
         segmented_tickers= classify_stock_table(ticker_identity)
         validated_tickers = validated_segmented_tickers(segmented_tickers)
+        
         #Saving the fresh segmented ticker data
         fresh_segmented_data = validated_tickers
         fresh_segmented_data.to_csv(
@@ -195,7 +196,7 @@ if __name__ == "__main__":
         logger.info("====Starting to classify the tickers===")
         segmented_tickers= get_classified_ticker_df()
         print("\n==============PIPELINE SUCCESS===")
-        print(segmented_tickers)
+        print(segmented_tickers[0:50])
 
     except Exception as e:
         logger.error(f"Classfication FAILED: {str(e)}")

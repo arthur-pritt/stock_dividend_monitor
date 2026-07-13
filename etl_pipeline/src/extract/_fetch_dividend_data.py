@@ -226,108 +226,141 @@ def generate_cik_batches(df):
 
 def get_latest_dividend_declarations(batch, date_range):
     """
-    A function that pulls dividend per share from SEC EDGAR tools api and returns ticker, dividend per share, Quarter and Year.
-    The function pulls out dates quartely and yearly. The function selects the last  quarter and annual dates any time it is called.
+    Pulls dividend data from SEC EDGAR, evaluates time-span durations,
+    and normalizes the metrics to a Trailing Twelve Month (TTM) annual scale.
     """
     successful_tickers = []
-    failed_tickers =[]
+    failed_tickers = []
     target_tag = "us-gaap:CommonStockDividendsPerShareDeclared"
-    start_date=pd.Timestamp(date_range[0])
-    end_date=pd.Timestamp(date_range[1])
-
+    start_date = pd.Timestamp(date_range[0])
+    
     for batch_number, batch_item in enumerate(batch, start=1):
-        
-
         for item in batch_item:
             ticker = item['ticker']
             cik = item['cik']
             
             try:
-                #Creating the company object
+                # 1. INITIALIZATION & EXTRACTION LAYER
                 company = Company(cik)
-                filing = company.get_filings(form="10-Q")
-                if not filing:
-                    # treat as no dividend data
-                    # store 0.0 and continue
+                
+                # Fetch a buffer of recent filings (e.g., last 4) 
+                # instead of blindly slicing filing[0] to avoid the 0.00 trap
+                filings = company.get_filings(form="10-Q")
+                
+                if not filings:
+                    # Fallback for structural zeros
                     successful_tickers.append(pd.DataFrame([{
-                        'ticker' : ticker,
-                        'cik' : cik,
-                        'dividend_per_share' : 0.0,
-                        'quarter':(start_date.month - 1)//3 + 1,
-                        'year' : start_date.year
+                        'ticker': ticker, 'cik': cik, 'dividend_per_share': 0.0,
+                        'frequency': 'None', 'quarter': (start_date.month - 1)//3 + 1,
+                        'year': start_date.year
                     }]))
                     continue
-                filing = filing[0]
-                xbrl=filing.xbrl()
                 
-                # Get all facts
+                # Gather facts from the most recent filing document
+                # (loop over filings if aggregating history)
+                xbrl = filings[0].xbrl()
                 all_facts = xbrl.query().to_dataframe()
-
-                # Filter by concept using pandas
-                company_df = all_facts[
-                    all_facts['concept'] == target_tag
-                    ][['value', 'period_start', 'period_end']]
                 
-                # Keep only most recent declaration
-                company_df = company_df.sort_values('period_end', ascending=False).head(1)
-
-                # For companies that don't declare dividend will have 0.0 as their value
+                # Filter rows matching the specific XBRL taxonomy concept
+                company_df = all_facts[all_facts['concept'] == target_tag][['value', 'period_start', 'period_end']]
+                
                 if company_df.empty:
-                    company_df= pd.DataFrame([{
-                        'ticker': ticker,
-                        'cik':cik,
-                        'dividend_per_share': 0.0,
-                        'quarter':(start_date.month - 1 )//3+1,
-                        'year':start_date.year
-                    }])
-                    successful_tickers.append(company_df)
+                    successful_tickers.append(pd.DataFrame([{
+                        'ticker': ticker, 'cik': cik, 'dividend_per_share': 0.0,
+                        'frequency': 'None', 'quarter': (start_date.month - 1)//3 + 1,
+                        'year': start_date.year
+                    }]))
                     continue
                 
-                #Converting to pandas date
-                company_df['period_start']= pd.to_datetime(company_df['period_start'])
-                company_df['period_end']= pd.to_datetime(company_df['period_end'])
-
-                #Renaming columns
-                company_df['ticker'] = ticker
-                company_df['cik'] = cik
-                company_df['quarter'] = company_df['period_end'].apply(lambda x: (x.month - 1 )// 3 + 1)
-                company_df['year'] = company_df['period_end'].apply(lambda x: x.year)
-                company_df['dividend_per_share'] = company_df['value']
-                company_df = company_df[['ticker', 'cik', 'dividend_per_share', 'quarter', 'year']]
-
-
-                #Appending/storing columns to successful_tickers dataframe
-                successful_tickers.append(company_df)
-
-
-                #Safety delay between batches
-                time.sleep(random.uniform(2.0,4.0))
-
-            except Exception as e:
-                logger.info(f" Batch {batch_number} failed: {e}")
-                failed_tickers.append({
-                    'ticker': ticker,
-                    'reason' :str(e)
-                    })
-        logger.info(f"Batch {batch_number} successful")
+                # DATA TRANSFORMATION & TIME-SPAN ISOLATION LAYER
+                # Convert strings to pandas datetime to enable date mathematics
+                company_df['period_start'] = pd.to_datetime(company_df['period_start'])
+                company_df['period_end'] = pd.to_datetime(company_df['period_end'])
                 
+                # Calculate exact disclosure time windows to identify YTD vs Quarter rows
+                company_df['duration_days'] = (company_df['period_end'] - company_df['period_start']).dt.days
+                
+                # Sort Chronologically by period_end so the most recent data points float to the top
+                company_df = company_df.sort_values('period_end', ascending=False)
+                
+                # Isolate the topmost available reporting fact
+                latest_fact = company_df.iloc[0]
+                days = latest_fact['duration_days']
+                raw_value = float(latest_fact['value'])
+                
+                # DYNAMIC SCALING & NORMALIZATION LAYER
+                # Clean the tie-breaker bug and prepare scale for the 3-3 Rule math
+                def evaluate_row_metrics(days):
 
+                    # Defensive Check: Handle XBRL Instant facts where period_start is null/NaN
+                    if pd.isna(days):
+                        return 1, "Quarterly", 4
+                    
+                    # Priority 1: True Quarter or Single-Day Announcement (Both represent single-quarter rate
+                    if (80 <= days <= 100) or (0<= days <=7):
+                        return 1, "Quarterly", 4
+                    
+                    # Priority 2: Cumulative 6-month YTD or true Semi-Annual
+                    elif 160 <= days <= 200:
+                        return 2, "Semi-Annual", 2
+                    # Priority 3: Cumulative Full-Year or true Annual
+                    elif 340 <= days <= 380:
+                        return 3, "Annual", 1
+                    # Priority 4: Irregular reporting periods
+                    else:
+                        return 4, "Unknown/Irregular",1
+                # Map evaluation metrics into temporary helper arrays
+                metrics = [evaluate_row_metrics(d) for d in company_df['duration_days']]
+                company_df['priority'] = [m[0] for m in metrics]
+                company_df['payout_frequency'] = [m[1] for m in metrics]
+                company_df['multiplier'] = [m[2] for m in metrics]
+
+
+                # Sort by period_end DESCENDING (latest date), 
+                # then by priority ASCENDING (Priority 1 wins over Priority 2 on the same date)
+                company_df = company_df.sort_values(
+                    by=['period_end', 'priority'], 
+                    ascending=[False, True]
+                )
+                # Isolate the definitive, highest-priority row
+                latest_fact = company_df.iloc[0]
+                raw_value = float(latest_fact['value'])
+                payout_frequency = latest_fact['payout_frequency']
+                annualized_dividend = raw_value * latest_fact['multiplier']
+
+
+                # LOAD / PACKAGING LAYER
+                # Package normalized data back into a structured single-row DataFrame
+                output_row = pd.DataFrame([{
+                    'ticker': ticker,
+                    'cik': cik,
+                    'dividend_per_share': annualized_dividend, # Normalized annual metric
+                    'raw_payout': raw_value,
+                    'frequency': payout_frequency,
+                    'quarter': (latest_fact['period_end'].month - 1) // 3 + 1,
+                    'year': latest_fact['period_end'].year
+                }])
+                
+                successful_tickers.append(output_row)
+                
+                # Rate limiting compliance safety delay
+                time.sleep(random.uniform(2.0, 4.0))
+                
+            except Exception as e:
+                logger.info(f"Ticker {ticker} failed: {e}")
+                failed_tickers.append({'ticker': ticker, 'reason': str(e)})
+                
+        logger.info(f"Batch {batch_number} processing sequence completed")
+
+    #PIPELINE AGGREGATION & TYPE CASTING
     if successful_tickers:
-        successful_tickers= pd.concat(successful_tickers, axis=0, ignore_index=True)
-        successful_tickers['dividend_per_share'] = successful_tickers['dividend_per_share'].astype(float)
-        #successful_tickers= successful_tickers.sort_values(['ticker','cik']).reset_index(drop=True)
-        logger.info(f"\n== COMPLETED! {successful_tickers.shape[0]}")
-
+        final_df = pd.concat(successful_tickers, axis=0, ignore_index=True)
+        final_df['dividend_per_share'] = final_df['dividend_per_share'].astype(float)
+        logger.info(f"\n== PIPELINE SUCCESS. SHAPE: {final_df.shape}")
+        return final_df
     else:
-        logger.info("No data was downloaded")
-        
-    logger.info(f"\n DOWNLOAD COMPLETED")    
-    logger.info(f" Successful batches: {successful_tickers.shape[0]}/300")
-
-    if failed_tickers:
-        logger.info(f" Failed batches: {failed_tickers}")
-        
-    return successful_tickers
+        logger.error("Data pipeline execution returned 0 records.")
+        return pd.DataFrame()
 
 def validate_dividend_tickers(dividend_df):
     """
@@ -390,7 +423,7 @@ def get_dividend_data(nasdaq_list):
                     "ticker": str, 
                     "cik" : str, 
                     "dividend_per_share" : str, 
-                    "quarter ": int, 
+                    "quarter": int, 
                     "year" : int
                 }
             )

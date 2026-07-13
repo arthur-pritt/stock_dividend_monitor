@@ -173,9 +173,15 @@ def get_top_300(match_and_categorize):
          'market_cap_master':MARKET_CAP_AGG}
     ).reset_index()
 
+    print("Market Cap Data Type:", df_green['market_cap_master'].dtype)
+# If this prints 'object', you need to convert it using: 
+# df_green['market_cap_master'] = pd.to_numeric(df_green['market_cap_master'], errors='coerce')
+
     #Step 15: Rename & sort
     top_groups.columns=[DATA_COLS['name'], DATA_COLS['ticker'], DATA_COLS['valuations']]
     top_groups=top_groups.sort_values(by=DATA_COLS['valuations'], ascending=False)
+
+    print("Total unique grouped companies:", len(top_groups))
 
     #Step 16: Trim to Top 300
     final_300= top_groups.head(300)
@@ -183,6 +189,24 @@ def get_top_300(match_and_categorize):
     logger.info(f"Top 300 list generated. Largest: {final_300.iloc[0][DATA_COLS['name']]}")
     print(final_300[DATA_COLS['ticker']].duplicated().sum())
     print(final_300[DATA_COLS['valuations']].min())
+
+    # Find the exact row where ticker 'A' made it into your final list
+    a_row = final_300[final_300[DATA_COLS['ticker']] == 'A']
+    print("Agilent Row in Final 300:\n", a_row)
+
+    # Check what else got aggregated under that same match name upstream
+    match_name_used = a_row[DATA_COLS['name']].values[0]
+    print(f"\nAll rows sharing the match name '{match_name_used}':")
+    print(df_green[df_green['match_name'] == match_name_used][['ticker_master', 'market_cap_master']])
+    # Check how many companies are being killed by the 'Green' filter
+    print("Total companies BEFORE trust filter:", len(match_and_categorize))
+    print("Total companies AFTER trust filter:", len(match_and_categorize[match_and_categorize['trust_level']=='Green: Verified']))
+
+# Look at some massive companies that are missing from your 'Green' list
+    large_dropped = match_and_categorize[match_and_categorize['trust_level'] != 'Green: Verified'].sort_values(by='market_cap_master', ascending=False)
+    print("\nTop 5 largest companies excluded because they aren't 'Green':")
+    print(large_dropped[['match_name', 'ticker_master', 'market_cap_master', 'trust_level']].head(5))
+    
     return final_300
 
 def validate_top_300(get_top_300):
@@ -274,6 +298,7 @@ def get_nasdaq_list():
         categorized_list = match_and_categorize(normalized_data, master_list)
         # 3. Filter and verify the final output
         top_300 = get_top_300(categorized_list)
+    
         final_list = validate_top_300(top_300)
 
         #saving the fresh data
@@ -297,10 +322,11 @@ if __name__  == "__main__":
     try:
         nasdaq_data = get_nasdaq_list()
         print("\n====PIPELINE SUCCESS===")
-        print(nasdaq_data)
+        print(nasdaq_data[0:50])
+        print(nasdaq_data[50:100])
 
     except Exception as e:
-        logger.error(f" Pipeline Failed: {str(e)}")
+       logger.error(f" Pipeline Failed: {str(e)}")
 
     
 

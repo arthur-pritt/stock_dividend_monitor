@@ -96,7 +96,6 @@ def split_dividend_status(classified_csv: pathlib.Path)-> tuple[pd.DataFrame, pd
         
     else:
         logger.info(f" PIPELINE PROCEEDS......")
-        logger.warning(f"Tickers with null values written corrupted_data.csv")
 
         #Create the null musk
         null_musk = df['dividend_status'].isna()
