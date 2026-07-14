@@ -1,5 +1,4 @@
 import pandas as pd
-from functools import reduce
 import numpy as np
 
 
@@ -10,7 +9,12 @@ from config.logging_config import(
 
 from etl_pipeline.src.extract._backfill import get_historical_data
 from etl_pipeline.src.transform.stock_classification import get_classified_ticker_df
+from config.settings import (
+    PROCESSED_SUBDIR,
+    WATCHLIST_STATUS_FILEPATH   
+)
 
+PROCESSED_SUBDIR.mkdir(parents=True, exist_ok=True)
 
 
 setup_logging()
@@ -117,7 +121,8 @@ def price_change_calculation(
         'actual_days',
         'coverage_pct',
         'is_flagged'
-    ])
+    ],
+    errors='ignore')
 
     #DATA QUALITY GATE:Zero values/10% error budget. If the percentage of zero values exists in the historical_data and classified_data and is more than 10
     #%, the pipeline stops. If less than that, the pipeline logs a warning and saves the bad data to zero_tickers.csv.
@@ -133,10 +138,15 @@ def price_change_calculation(
     
     if historical_zero_pct > 0 or classified_zero_pct > 0:
         logger.warning("Zero prices discovered under budget threshold. Logging anomalies to zero_tickers.csv")
-        zero_tickers=pd.concat(
+        zero_tickers_csv=pd.concat(
             [historical_zero,classified_zero],
             ignore_index=True
         )
+        if not zero_tickers_csv.empty:
+            logger.warning(f"{len(zero_tickers_csv)} ticker(s) with zero adjusted close price.")
+            zero_tickers_csv.to_csv(
+                'zero_tickers.csv',
+                index=False)
 
     historical_data=historical_data[historical_data['historical_adjclose'] !=0]
     classified_data=classified_data[classified_data['current_adjclose'] !=0]
@@ -146,7 +156,7 @@ def price_change_calculation(
     historical_data['ticker']=historical_data['ticker'].str.upper()
     
 
-    #DATA QUALITY GATE:Identify which tickers exist in one slice but not the other. Export those discrepancies to failed_joined_tickers.csv
+    #DATA QUALITY GATE:Identify which tickers exist in one slice but not the other. Export those discrepancies to failed_tickers.csv
     #Perform inner join between historical_data and classified_data.some entries here may be tickers already excluded upstream for zero-price — check zero_tickers.csv first
     result_df=classified_data.merge(
         historical_data,
@@ -166,24 +176,22 @@ def price_change_calculation(
     logger.info(f"SUCCESS: joining historical data with classified data")
 
 
-
     #DATA QUALITY GATE: Calculate the delta between current_date and historical_date. Identify rows outside your acceptable calendar day threshold, log them to dropped_tickers.csv, and filter them out.
-    #if the difference between min(date) and max(date) is less than 85 or 95 dats. And create actual_days column
+    #if the difference between min(date) and max(date) is less than 80 or 95 dats. And create actual_days column
     joined_df['current_date']=pd.to_datetime(joined_df['current_date'])
     joined_df['actual_days']= (joined_df['current_date'] - joined_df['historical_date']).dt.days
 
     mask = (joined_df['actual_days'] < 80) | (joined_df['actual_days'] > 95)
     dropped_tickers = joined_df[mask]
 
-    logger.info(f"Dropping tickers that fall outside the 80 to 95 calendar window")
-    dropped_tickers.to_csv(
-        'dropped_tickers.csv',
-        index=False
-    )
+    if not dropped_tickers.empty:
+        logger.info(f"Dropping tickers that fall outside the 80 to 95 calendar window")
+        dropped_tickers.to_csv(
+            'dropped_tickers.csv',
+            index=False
+            )
 
     joined_df=joined_df[~mask]
-    
-    print(joined_df.shape)
 
     #Math & Logic Engine: Safely compute pct_change (since zeros are gone) and apply your conditional labeling for the watchlist_status
 
@@ -191,7 +199,7 @@ def price_change_calculation(
     joined_df['pct_change']= joined_df['price_diff'] / joined_df['historical_adjclose'] *100
 
     conditions = [
-        joined_df['pct_change'] >=50.20,
+        joined_df['pct_change'] >=50.00,
 
         (joined_df['pct_change'] >-20.0) &
         (joined_df['pct_change'] <50.0),
@@ -215,29 +223,47 @@ def price_change_calculation(
     logger.info(
         joined_df['watchlist_status'].value_counts())
     
-    # Print the exact row that is falling through the cracks
-
     return joined_df
+    
+def get_watchlist_status()-> pd.DataFrame:
+    
+    """
+    Orchestrates the entire files and saves the watchlist status results
+    to watchlist_status.csv."""
+
+    # Calculating the 90 day price change and saving the watchlist_status
+
+    historical_data = get_historical_data()
+    classified_data = get_classified_ticker_df()
+
+    dataframes = {
+        'historical_df': historical_data,
+        'classified_df': classified_data
+                }
+    for name, df in dataframes.items():
+        validating_two_dataframes(df,name)
+    
+    watch_status_df = price_change_calculation(classified_data,historical_data)
+    watch_status_df.to_csv(
+        WATCHLIST_STATUS_FILEPATH,
+        index=False,
+        float_format= "%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+    
+    logger.info("Pipeline Executed successfuly. WATCHLIST_STATUS table saved to csv file")
+    return watch_status_df 
 
 
 if __name__ == "__main__":
-    historical_df = get_historical_data()
-    classified_df = get_classified_ticker_df()
-    dataframes = {
-        "historical_df":historical_df,
-        "classified_df":classified_df
-    }
+    try:
+        watchlist_table=get_watchlist_status()
+        print(watchlist_table)
 
-    for name, df in dataframes.items():
-        validating_two_dataframes(df,name)
-
-    #print(historical_df.head(10))
-    #print("Classified")
-    #print(classified_df.head(10))
-
-    merged_table = price_change_calculation(classified_df,historical_df)
-    print(merged_table[0:50])
-    print(merged_table[50:100])
+    except Exception as e:
+        logger.error(f"Math logic failed: {str(e)}")
+    
 
 
 
