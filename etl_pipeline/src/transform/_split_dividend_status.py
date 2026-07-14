@@ -10,7 +10,8 @@ from config.logging_config import (
 from config.settings import (
     PROCESSED_SUBDIR,
     CLASSIFICATION_FILEPATH,
-    CORRUPTED_DATA_FILEPATH
+    CACHED_DIVIDEND_FILEPATH,
+    CACHED_NON_DIVIDEND_FILEPATH
 )
 
 from etl_pipeline.src.transform.stock_classification import get_classified_ticker_df
@@ -19,10 +20,11 @@ PROCESSED_SUBDIR.mkdir(parents=True, exist_ok=True)
 setup_logging()
 logger = get_logger(__name__)
 
-def validating_classified_stock(classified_csv: pathlib.Path)-> pd.DataFrame:
+def validating_classified_stock(classified_csv: pathlib.Path)-> pathlib.Path:
     """
-    Validating of the classified_csv file structural integrity, loads it,
-    and passing it to downstream dataframe validation."""
+    Validating of the classified_csv file:
+    checks existence, extension, emptiness, and that pandas can parse it and 
+    then hands back the path."""
 
     if isinstance(classified_csv, pd.DataFrame):
         raise TypeError(
@@ -52,7 +54,7 @@ def validating_classified_stock(classified_csv: pathlib.Path)-> pd.DataFrame:
         raise ValueError(f" Malformatted CSV data at {classified_csv}: {err}") from err
     logger.info(f"File {classified_csv.name} parsed successfully. VALIDATION COMPLETE")
 
-    return df
+    return classified_csv
 
 def split_dividend_status(classified_csv: pathlib.Path)-> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -113,15 +115,27 @@ def split_dividend_status(classified_csv: pathlib.Path)-> tuple[pd.DataFrame, pd
     #Keeping only clean data in memory for the rest function
     df=df[~null_musk]
 
+    #Removing bad
+    allowed=['dividend_payer', 'no_dividend_payer']
+    valid_status_mask=df["dividend_status"].isin(allowed)
+    invalid_status_df=df[~valid_status_mask]
+    if len(invalid_status_df) > 0:
+        logger.warning(f"{len(invalid_status_df)} tickers with wrong status write to wrong_status.csv")
+        invalid_status_df.to_csv(
+            classified_csv.parent / "wrong_status.csv",
+            index=False,
+            encoding='utf-8')
+
     #Splits into two dataframes (df_dividends and df_non_dividends).
     df_dividend =df[df['dividend_status']=='dividend_payer']
     df_non_dividend = df[df['dividend_status']=='no_dividend_payer']
 
+    
 
     # Validating that data is neither created nor destroyed during the operation.
     # Output validation contract must confirm the equation of no data loss/creation
 
-    total_output_rows= len(df_dividend) + len(df_non_dividend) + len(df_corrupt)
+    total_output_rows= len(df_dividend) + len(df_non_dividend) + len(df_corrupt) + len(invalid_status_df)
 
     if total_input_rows != total_output_rows:
         raise RuntimeError(
@@ -131,15 +145,44 @@ def split_dividend_status(classified_csv: pathlib.Path)-> tuple[pd.DataFrame, pd
     
     logger.info(f"Splitting of dividend_status column COMPLETE")
     return df_dividend, df_non_dividend
+def get_dividend_type(classified_csv:pathlib.Path)-> tuple[pd.DataFrame,pd.DataFrame]:
+
+    """
+    Fetches the dividend status  and orchestrates the entire file to be used
+    by other function.
+    """
+    # Splitting the dividend column into twos( dividend companies and non_dividend_companies)
+    validated_status_csv= validating_classified_stock(classified_csv)
+    df_dividend, df_non_dividend=split_dividend_status(validated_status_csv)
+
+    #Saving the dividend and non_dividend files to CSV
+    df_dividend.to_csv(
+        CACHED_DIVIDEND_FILEPATH,
+        index= False,
+        float_format= "%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+        
+    )
+
+    df_non_dividend.to_csv(
+        CACHED_NON_DIVIDEND_FILEPATH,
+        index= False,
+        float_format= "%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+    )
+    
+    logger.info("Pipeline Executed the split successfully. Two dataframe saved: " \
+    "DIVIDEND PAYING COMPANIES & NON DIVIDEND PAYING COMPANIES")
+    return df_dividend, df_non_dividend
 
 if __name__ == "__main__":
     try:
         logger.info("=====Starting to split dividend_status column")
-        csv_path = pathlib.Path(CLASSIFICATION_FILEPATH)
-        validated_status_csv = validating_classified_stock(csv_path)
-        df_dividend, df_non_dividend = split_dividend_status(CLASSIFICATION_FILEPATH)
-        print(df_dividend[0:50])
-        print(df_non_dividend[0:50])
+        csv_path=pathlib.Path(CLASSIFICATION_FILEPATH)
+        dividend_companies, non_dividend_companies=get_dividend_type(csv_path)
+        print(dividend_companies)
 
     except Exception as e:
         logger.error(f"Splitting FAILED: {str(e)}")
