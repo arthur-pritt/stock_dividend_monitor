@@ -429,7 +429,6 @@ def get_dividend_data(nasdaq_list):
             )
 
     #Gather raw materials
-    #final_list = get_nasdaq_list
 
     # Fetching dividend prices process
     tickers = validate_incoming_tickers(nasdaq_list)

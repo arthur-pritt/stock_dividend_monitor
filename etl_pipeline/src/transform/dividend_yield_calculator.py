@@ -9,7 +9,7 @@ from config.logging_config import (
 
 from config.settings import (
     PROCESSED_SUBDIR,
-    DIVIDENDS_FILEPATH,
+    WATCHLIST_STATUS_FILEPATH,
     CACHED_DIVIDEND_FILEPATH
 )
 
@@ -22,8 +22,8 @@ def validating_dividend_dats():
     pass 
 
 def calculating_dividend_yield(
-        raw_dividend_df:pathlib.Path,
-        dividend_paying_df:pathlib.Path)-> pd.DataFrame:
+        watchlist_path:pathlib.Path,
+        dividend_paying_path:pathlib.Path)-> pd.DataFrame:
     """
     Calculates if a stock dividend yield equals three years,
     five years, and ten years and returns a complete 
@@ -31,87 +31,51 @@ def calculating_dividend_yield(
 
     #Light validation
 
-    #For raw_dividend_df, grab the row with the maximum date max(date) per ticker or newest date
+    #loading the pre_calculated 90-day price data and dividends
+    watchlist_path = pd.read_csv(WATCHLIST_STATUS_FILEPATH)
+    dividend_paying_path=pd.read_csv(CACHED_DIVIDEND_FILEPATH)
+
+    #For dividend_payingdf, grab the row with the maximum date max(date) per ticker or newest date
     #Loading and reading data from the disk
-    dividend_paying_df=pd.read_csv(
-        CACHED_DIVIDEND_FILEPATH
-    )
-    dividend_paying_df=dividend_paying_df.sort_values(
+
+    dividend_paying_path=dividend_paying_path.sort_values(
         by=['ticker','date'],
         ascending=True
         ).drop_duplicates(subset='ticker',
                           keep='last')
-    dividend_paying_df=dividend_paying_df.reset_index(drop=True)
-    
+    dividend_paying_path=dividend_paying_path.reset_index(drop=True)
 
-    #Drop columns in raw_dividend_df such as CIK. Drop columns in  dividend_paying_df 
+    #Drop columns in dividend_paying df such as dividend_status,date,adj_close,dividend_per_share,
+    # . Drop columns in  dividend_paying_df 
     #such as dividend_status, frequency. Frequency will be provided by raw_dividend_df
-    raw_dividend_df= pd.read_csv(
-        DIVIDENDS_FILEPATH
-    )
-    raw_dividend_df= raw_dividend_df.drop(columns=
-                                          ['cik'])
     
-    dividend_paying_df= dividend_paying_df.drop(columns=
+    dividend_paying_path= dividend_paying_path.drop(columns=
+                                                    ['date',
+                                                     'adj_close',
+                                                     'year',
+                                                     'earnings_pershare'])
+    
+    watchlist_path= watchlist_path.drop(columns=
                                                 ['dividend_status',
                                                  'frequency',
                                                  'quarter',
                                                  'year',
                                                  'raw_payout',
-                                                 'dividend_per_share'])
-
-   
-    #DATA QUALITY GATE: Zero values/10% Error budget. If the percentage of zero
-    #exists in raw_dividend_df dividend_per_share column and is more than 10%,
-    #the pipeline stops. Less than that, the pipeline proceeds and saves the report
-    #to zero_dividend.csv. The same treatment for dividend_paying_df on the
-    #adjusted close.
-
-    dividend_paying_zero=(dividend_paying_df['adj_close']==0)
-    dividend_paying_zero_pct=(dividend_paying_df['adj_close']==0).mean()*100
-
-    if dividend_paying_zero_pct > 10.0:
-        raise ValueError(f"Pipeline Stopped: Zero price occurrence excceds the 10% error budget.")
+                                                 'dividend_per_share',
+                                                 '_merge',
+                                                 'name',
+                                                 'market_cap',
+                                                 'earnings_pershare'])
     
-    if dividend_paying_zero_pct > 0:
-        logger.warning("Zero prices discovered under budget threshold. LOgging anomalies to zero_dividend.csv")
-        zero_dividend_csv=dividend_paying_df[dividend_paying_zero]
-        if not zero_dividend_csv.empty:
-            zero_dividend_csv.to_csv(
-                dividend_paying_df.parent / "zero_dividend_data.csv",
-                index=False,
-                encoding='utf-8')
-            
-    #Keeping only clean data in memory
-    dividend_paying_df = dividend_paying_df[~dividend_paying_zero]
-
-    #DATA QUALITY GATE: Tickers that fail the join will be saved to
-    #failed_dividend_csv. Perform inner join between raw_dividend_df and
-    #dividend_paying_df.
-    joined_dividend_df= dividend_paying_df.merge(
-        raw_dividend_df,
+   
+    #merging them on ticker
+    merged_dividend_data=watchlist_path.merge(
+        dividend_paying_path,
         on='ticker',
-        how='outer',
-        indicator=True
+        how='inner'
     )
-    failed_dividends= joined_dividend_df[joined_dividend_df['_merge'] !='both']
-    if not failed_dividends.empty:
-        logger.warning(f"{len(failed_dividends)} ticker(s) failed the join.")
-        failed_dividends.to_csv(
-            'failed_dividend.csv',
-            index=False
-        )
-    joined_dividend_df=joined_dividend_df[joined_dividend_df['_merge']=="both"].copy()
-    logger.info(f"SUCCESS: joining two dataset complete.")
 
-    #ISOLATE AND CLEAN THE DATA:REMOVING NAN
-
-    clean_mask=(joined_dividend_df['_merge']=="both") & joined_dividend_df['adj_close'].notna()
-    clean_dividend_df=joined_dividend_df[clean_mask].copy()
-    nan_dividend_df=joined_dividend_df[~clean_mask]
-    if not nan_dividend_df.empty:
-        print(f"Isolated {len(nan_dividend_df)} rows with missing market data")
-
+    #Calculation
 
     #Maths and Engine logic compute: Dividend_per_share is annualized
     #three_year_yield= dividend_per_share * 3
@@ -122,32 +86,30 @@ def calculating_dividend_yield(
     #ten_year_yield_pct=(ten_year_yield/adjusted_close) * 100
     #All these will be three columns with exact figure.
 
-    clean_dividend_df['dividend_yield']=(clean_dividend_df['dividend_per_share'] /
-                                         clean_dividend_df['adj_close']) * 100
-    clean_dividend_df['three_year_yield']=clean_dividend_df['dividend_per_share']*3
-    clean_dividend_df['five_year_yield']=clean_dividend_df['dividend_per_share'] * 5
-    clean_dividend_df['ten_year_yield']=clean_dividend_df['dividend_per_share'] * 10
+    merged_dividend_data['dividend_yield_pct']=(merged_dividend_data['dividend_per_share'] /
+                                         merged_dividend_data['price_diff']) * 100
+    merged_dividend_data['three_year_yield']=merged_dividend_data['dividend_per_share']*3
+    merged_dividend_data['five_year_yield']=merged_dividend_data['dividend_per_share'] * 5
+    merged_dividend_data['ten_year_yield']=merged_dividend_data['dividend_per_share'] * 10
 
-    clean_dividend_df['three_year_yield_pct']=(clean_dividend_df['three_year_yield'] /
-                                               clean_dividend_df['adj_close']) * 100
-    clean_dividend_df['five_year_yield_pct']=(clean_dividend_df['five_year_yield'] /
-                                              clean_dividend_df['adj_close']) * 100
+    merged_dividend_data['three_year_yield_pct']=(merged_dividend_data['three_year_yield'] /
+                                               merged_dividend_data['current_adjclose']) * 100
+    merged_dividend_data['five_year_yield_pct']=(merged_dividend_data['five_year_yield'] /
+                                              merged_dividend_data['current_adjclose']) * 100
 
-    clean_dividend_df['ten_year_yield_pct']=(clean_dividend_df['ten_year_yield'] /
-                                             clean_dividend_df['adj_close']) * 100
-
-    print(clean_dividend_df)
+    merged_dividend_data['ten_year_yield_pct']=(merged_dividend_data['ten_year_yield'] /
+                                             merged_dividend_data['current_adjclose']) * 100
 
 
-    return raw_dividend_df
+    return merged_dividend_data
 
 if __name__== "__main__":
       try:
 
         logger.info(f"======CALCULATING DIVIDEND YIELD")
-        dividend_info_path = pd.read_csv(DIVIDENDS_FILEPATH)
+        price_change_info = pd.read_csv(WATCHLIST_STATUS_FILEPATH)
         dividend_companies_path = pd.read_csv(CACHED_DIVIDEND_FILEPATH)
-        calculator = calculating_dividend_yield(dividend_info_path,dividend_companies_path)
+        calculator = calculating_dividend_yield(price_change_info,dividend_companies_path)
 
         
       except Exception as e:
