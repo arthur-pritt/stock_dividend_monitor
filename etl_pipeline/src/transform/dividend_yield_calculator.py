@@ -1,6 +1,7 @@
 import pandas as pd 
 import pathlib
 from pathlib import Path
+import numpy as np
 
 from config.logging_config import (
     setup_logging,
@@ -99,9 +100,46 @@ def calculating_dividend_yield(
 
     merged_dividend_data['ten_year_yield_pct']=(merged_dividend_data['ten_year_yield'] /
                                              merged_dividend_data['current_adjclose']) * 100
-
+    
+    print(merged_dividend_data)
 
     return merged_dividend_data
+
+def action_signal(calculator:pd.DataFrame)-> pd.DataFrame:
+    """
+    Evaluates actual price gain meeting different dividend yields
+    (3,5,10) and returning different label(
+    SELL_PARTIAL_STAGE_3_20_PCT,
+    SELL_PARTIAL_STAGE_3_30_PCT,
+    SELL_PARTIAL_STAGE_1_30_PCT,
+    HOLD)"""
+
+    #Create temporary boolean series (in memory only, not saved as df columns)
+    is_10yr= calculator['price_diff']>= calculator['ten_year_yield']
+    is_5yr=  calculator['price_diff']>= calculator['five_year_yield']
+    is_3yr=  calculator['price_diff']>= calculator['three_year_yield']
+
+    #.Defining conditions from highest to lowest
+    conditions = [
+        is_10yr,
+        is_5yr,
+        is_3yr
+    ]
+
+    #.Matching labels
+    choices =[
+        "SELL_PARTIAL_STAGE_3_20_PCT",
+        "SELL_PARTIAL_STAGE_2_30_PCT",
+        "SELL_PARTIAL_STAGE_1_30_PCT"
+    ]
+
+    calculator['action_signal']=np.select(conditions,
+                                          choices,
+                                          default="HOLD")
+    print(calculator[['ticker','pct_change','watchlist_status', 'action_signal']][0:50])
+    print(calculator.columns)
+    
+    return calculator
 
 if __name__== "__main__":
       try:
@@ -109,7 +147,8 @@ if __name__== "__main__":
         logger.info(f"======CALCULATING DIVIDEND YIELD")
         price_change_info = pd.read_csv(WATCHLIST_STATUS_FILEPATH)
         dividend_companies_path = pd.read_csv(CACHED_DIVIDEND_FILEPATH)
-        calculator = calculating_dividend_yield(price_change_info,dividend_companies_path)
+        calculating_yield = calculating_dividend_yield(price_change_info,dividend_companies_path)
+        signal_holder= action_signal(calculating_yield)
 
         
       except Exception as e:

@@ -142,7 +142,7 @@ def price_change_calculation(
             [historical_zero,classified_zero],
             ignore_index=True
         )
-        if not zero_tickers_csv.empty:
+        if not historical_zero.empty or not classified_zero.empty:
             logger.warning(f"{len(zero_tickers_csv)} ticker(s) with zero adjusted close price.")
             zero_tickers_csv.to_csv(
                 'zero_tickers.csv',
@@ -179,6 +179,7 @@ def price_change_calculation(
     #DATA QUALITY GATE: Calculate the delta between current_date and historical_date. Identify rows outside your acceptable calendar day threshold, log them to dropped_tickers.csv, and filter them out.
     #if the difference between min(date) and max(date) is less than 80 or 95 dats. And create actual_days column
     joined_df['current_date']=pd.to_datetime(joined_df['current_date'])
+    joined_df['historical_date']=pd.to_datetime(joined_df['historical_date'])
     joined_df['actual_days']= (joined_df['current_date'] - joined_df['historical_date']).dt.days
 
     mask = (joined_df['actual_days'] < 80) | (joined_df['actual_days'] > 95)
@@ -259,7 +260,7 @@ def get_watchlist_status()-> pd.DataFrame:
 if __name__ == "__main__":
     try:
         watchlist_table=get_watchlist_status()
-        print(watchlist_table)
+        print(watchlist_table.columns)
 
     except Exception as e:
         logger.error(f"Math logic failed: {str(e)}")
