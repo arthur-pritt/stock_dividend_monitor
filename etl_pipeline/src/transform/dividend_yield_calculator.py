@@ -11,7 +11,8 @@ from config.logging_config import (
 from config.settings import (
     PROCESSED_SUBDIR,
     WATCHLIST_STATUS_FILEPATH,
-    CACHED_DIVIDEND_FILEPATH
+    CACHED_DIVIDEND_FILEPATH,
+    CAPITAL_GAIN_FILEPATH
 )
 
 PROCESSED_SUBDIR.mkdir(parents=True, exist_ok=True)
@@ -101,7 +102,8 @@ def calculating_dividend_yield(
     merged_dividend_data['ten_year_yield_pct']=(merged_dividend_data['ten_year_yield'] /
                                              merged_dividend_data['current_adjclose']) * 100
     
-    print(merged_dividend_data)
+                                        
+    logger.info(f"COMPLETE: Dividend calculation DONE")
 
     return merged_dividend_data
 
@@ -136,19 +138,39 @@ def action_signal(calculator:pd.DataFrame)-> pd.DataFrame:
     calculator['action_signal']=np.select(conditions,
                                           choices,
                                           default="HOLD")
-    print(calculator[['ticker','pct_change','watchlist_status', 'action_signal']][0:50])
-    print(calculator.columns)
+    logger.info(f"COMPLETE: Action Signal Alerts complete")
     
     return calculator
 
+def get_dividend_calculation()->pathlib.Path:
+    """
+    Orchestrates the whole files and saves the results to a csv file."""
+
+    logger.info("Starting to Fetch Dividend Yield Thresholds and Calculation")
+    
+    price_change_info = pd.read_csv(WATCHLIST_STATUS_FILEPATH)
+    dividend_companies_path = pd.read_csv(CACHED_DIVIDEND_FILEPATH)
+    calculating_yield = calculating_dividend_yield(price_change_info,dividend_companies_path)
+    capital_gain_df= action_signal(calculating_yield)
+    capital_gain_df.to_csv(
+        CAPITAL_GAIN_FILEPATH,
+        index=False,
+        float_format="%.2f",
+        na_rep="NA",
+        encoding="utf-8"
+
+    )
+
+    logger.info("Pipeline Executed successfully. Capital Gain CSV file created")
+
+    return capital_gain_df
 if __name__== "__main__":
       try:
 
         logger.info(f"======CALCULATING DIVIDEND YIELD")
-        price_change_info = pd.read_csv(WATCHLIST_STATUS_FILEPATH)
-        dividend_companies_path = pd.read_csv(CACHED_DIVIDEND_FILEPATH)
-        calculating_yield = calculating_dividend_yield(price_change_info,dividend_companies_path)
-        signal_holder= action_signal(calculating_yield)
+        capital_gain_table=get_dividend_calculation()
+        print(capital_gain_table)
+        
 
         
       except Exception as e:
