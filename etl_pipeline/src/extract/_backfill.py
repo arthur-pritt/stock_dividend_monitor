@@ -122,14 +122,17 @@ def fetch_raw_data(df):
                 # Reset index to turn MultiIndex (symbol, date) into columns
                 batch_df = batch_df.reset_index()
 
-                #rename symbol to ticker column
-                batch_df= batch_df.rename(columns={"symbol":"ticker"})
+                #rename symbol to ticker  and date to recorded date column
+                batch_df= batch_df.rename(columns=
+                                          {"symbol":"ticker",
+                                          "date":"recorded_date"})
+            
 
                 # Force date column to be clean UTC-aware (this kills mixed timezone errors)
-                batch_df['date'] = pd.to_datetime(batch_df['date'], utc=True)
+                batch_df['recorded_date'] = pd.to_datetime(batch_df['recorded_date'], utc=True)
 
                 # Keep only the columns you need for cleaning
-                keep_cols = ['ticker', 'date', 'adjclose', 'open', 'high', 'low', 'close', 'volume']
+                keep_cols = ['ticker', 'recorded_date', 'adjclose', 'open', 'high', 'low', 'close', 'volume']
                 batch_df = batch_df[[c for c in keep_cols if c in batch_df.columns]]
 
                 all_batches.append(batch_df)
@@ -159,7 +162,7 @@ def fetch_raw_data(df):
 
     # Final cleanup
     master_df = master_df.dropna(subset=['adjclose'])
-    master_df = master_df.sort_values(['ticker', 'date'])
+    master_df = master_df.sort_values(['ticker', 'recorded_date'])
 
     logger.info(f"fetch_raw_data completed → {len(master_df)} rows, "
                 f"{master_df['ticker'].nunique()} unique tickers")
@@ -190,25 +193,25 @@ def clean_and_validate(df: pd.DataFrame, min_days_threshold: int = 55):
     df_clean.columns = [str(c).lower().strip().replace(" ", "_") for c in df_clean.columns]
 
     # Safety check
-    required_cols = {'date', 'ticker', 'adjclose',}
+    required_cols = {'recorded_date', 'ticker', 'adjclose',}
     if not required_cols.issubset(df_clean.columns):
         return None, {"is_empty": True, "error": "Missing required columns"}
 
     # Convert + clean
-    df_clean['date'] = pd.to_datetime(df_clean['date'], errors='coerce')
-    if df_clean['date'].dt.tz is None:
-        df_clean['date'] = df_clean['date'].dt.tz_localize('UTC')
+    df_clean['recorded_date'] = pd.to_datetime(df_clean['recorded_date'], errors='coerce')
+    if df_clean['recorded_date'].dt.tz is None:
+        df_clean['recorded_date'] = df_clean['recorded_date'].dt.tz_localize('UTC')
     else:
-        df_clean['date'] = df_clean['date'].dt.tz_convert('UTC')
-    df_clean = df_clean.dropna(subset=['date', 'adjclose'])
+        df_clean['recorded_date'] = df_clean['recorded_date'].dt.tz_convert('UTC')
+    df_clean = df_clean.dropna(subset=['recorded_date', 'adjclose'])
 
     if df_clean.empty:
         return df_clean, {"is_empty": True}
     
     #Max and Min date
     
-    min_date = df_clean['date'].min()
-    max_date = df_clean['date'].max()
+    min_date = df_clean['recorded_date'].min()
+    max_date = df_clean['recorded_date'].max()
 
     # --- 4. MINIMAL RESULTS ---
     results = {
@@ -245,25 +248,25 @@ def audit_raw_data(df: pd.DataFrame, min_days_threshold: int = 55):
     df_audit = df.copy()
 
     # --- 1. BASIC CHECKS ---
-    required_cols = {'date', 'ticker'}
+    required_cols = {'recorded_date', 'ticker'}
     if not required_cols.issubset(df_audit.columns):
         return None, {"is_empty": True, "error": "Missing required columns"}
 
     # Ensure datetime
-    df_audit['date'] = pd.to_datetime(df_audit['date'], errors='coerce')
-    df_audit = df_audit.dropna(subset=['date'])
+    df_audit['recorded_date'] = pd.to_datetime(df_audit['recorded_date'], errors='coerce')
+    df_audit = df_audit.dropna(subset=['recorded_date'])
 
     if df_audit.empty:
         return df_audit, {"is_empty": True}
 
     # --- 2. DATE RANGE + EXPECTED DAYS ---
-    min_date = df_audit['date'].min()
-    max_date = df_audit['date'].max()
+    min_date = df_audit['recorded_date'].min()
+    max_date = df_audit['recorded_date'].max()
     expected_days = count_trading_days(min_date, max_date)
 
     # --- 3. COUNT ACTUAL DAYS PER TICKER ---
     ticker_counts = (
-        df_audit.groupby('ticker')['date']
+        df_audit.groupby('ticker')['recorded_date']
         .nunique()
         .reset_index(name='actual_days')
     )
@@ -317,7 +320,7 @@ def validate_data_out(df):
         raise ValueError(f" The dataframe has less than 6830 rows which rep the 110 tickers. got: {df.shape[0]}")
     
     #confirm the required columns
-    required_col= ['ticker','date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
+    required_col= ['ticker','recorded_date','adjclose','volume', 'coverage_pct', 'is_flagged', 'actual_days']
     missing_col=[]
     for col in required_col:
         if col not in df.columns:
@@ -327,6 +330,22 @@ def validate_data_out(df):
         raise ValueError(f" missing columns are {missing_col}")
     
     logger.info(f"VALIDATION OF HISTORICAL DATA COMPLETE")
+
+    FINAL_COLUMNS = [
+        'ticker',
+        'recorded_date',
+        'adjclose',
+        'open',
+        'high',
+        'low',
+        'close',
+        'volume',
+        'actual_days',
+        'coverage_pct',
+        'is_flagged'
+    ]
+
+    df=df[FINAL_COLUMNS]
     return df
 
 def get_historical_data():
@@ -343,8 +362,8 @@ def get_historical_data():
         
         #recent_date= end_date.strftime("%Y-%m-%d")
 
-        existing=pd.read_csv(BACKFILL_FILEPATH, usecols=["date"], parse_dates=["date"])
-        latest_date_in_the_backfill = existing["date"].max().date()
+        existing=pd.read_csv(BACKFILL_FILEPATH, usecols=["recorded_date"], parse_dates=["recorded_date"])
+        latest_date_in_the_backfill = existing["recorded_date"].max().date()
 
         # Allowing for a 1- trading-day publish lag from the data provider
         trading_days= mcal.get_calendar("NYSE").valid_days(
@@ -357,7 +376,7 @@ def get_historical_data():
             logger.info("File Found, loading fresh historical data from the disk")
             return pd.read_csv(
                 BACKFILL_FILEPATH,
-                parse_dates=["date"],
+                parse_dates=["recorded_date"],
                 dtype={
                     'ticker': str,
                     'adjclose': float,
@@ -393,10 +412,13 @@ def get_historical_data():
 
 if __name__ == "__main__":
     try:
+
         historical_data = get_historical_data()
         print("\n=====PIPELINE SUCCESS===")
         print(historical_data[0:50])
         print(historical_data[50:100])
+
+      
 
     except Exception as e:
         logger.error(f" Pipeline Failed: {str(e)}")
