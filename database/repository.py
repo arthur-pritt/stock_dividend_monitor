@@ -18,7 +18,6 @@ from database.models import(
     StockDailySegmented
 )
 
-
 class StockRepository:
     def __init__(self, session:Session):
         self.session = session 
@@ -512,6 +511,152 @@ class DividendYieldGain:
             DividendYieldGain,
             ticker
         )
+
+    def get_all(self)-> list[DividendYieldGain]:
+        """
+        Retrieve all the dividend yield objects."""
+
+        statement = select(DividendYieldGain)
+        return self.session.execute(
+            statement
+        ).scalar().all()
+
+    def exists(self, ticker:str)-> bool:
+        """
+        Checks whether a stock exists.
+        """
+
+        return self.get_by_ticker(ticker) is not None 
+
+    def count(self)-> int:
+        """
+        Return the total number of stocks.
+        """
+
+        statement = select(func.count()).select_from(DividendYieldGain)
+        return self.session.scalar(statement)
+
+    def delete(self, dividendyieldgain:DividendYieldGain)-> None:
+        """
+        Delete a dividend yield gain object."""
+        self.session.delete(dividendyieldgain)
+
+class DividendCompanies:
+    def __int__(self, session:Session):
+        self.session = session 
+
+    def save(self, dividendcompany:DividendCompanies)-> None:
+        """
+        Adding a single dividend object to the current session
+        Note: Method does not commit the transaction."""
+
+        self.session.add(dividendcompany)
+
+    def save_many(self, dividendcompanies:DividendCompanies)-> None:
+        """
+        Adding multiple dividend object to the current session
+        Note: Method does not commit the transaction."""
+
+        self.session.add_all(DividendCompanies)
+
+    def get_by_ticker(self, ticker:str)-> None:
+        return self.session.get(
+            DividendCompanies,
+            ticker 
+        )
+
+    def get_all(self)-> list[DividendCompanies]:
+        """"
+        Retrieve all the dividend objects.
+        """
+
+        statement = select(DividendCompanies)
+        return self.session.execute(
+            statement
+        ).scalar().all()
+
+    def exists(self, ticker:str)-> bool:
+        """
+        Checks whether a dividend stock companies exists.
+        """
+        return self.get_by_ticker(ticker) is not None 
+    
+    def count(self)-> int:
+        """
+        Return the total number dividend companies.
+        """
+
+        statement = select(func.count()).select_from(DividendCompanies)
+        return self.session.scalar(statement)
+
+    def delete(self, dividendcompany:DividendCompanies)-> None:
+        """
+        Delete a dividend companies.
+        """
+
+        self.session.delete(dividendcompany)
+
+class NonDividendCompanies:
+    def __int__(self, session:Session):
+        self.session = session 
+
+    def save(self, nondividendcompany:NonDividendCompanies)-> None:
+        """
+        Adding a single non dividend company to the current session.
+        Note: This method does not commit the transaction.
+        """
+
+        self.session.add(nondividendcompany)
+
+    def save_many(self, nondividendcompanies:NonDividendCompanies)-> None:
+        """
+        Adding multiple non dividend companies to the current session.
+        Note: This method does not commit the transaction.
+        """
+
+        self.session.add_all(nondividendcompanies)
+
+    def get_by_ticker(self, ticker:str)-> None:
+        return self.session.get(
+            NonDividendCompanies,
+            ticker
+        )
+
+    def get_all(self)-> list[NonDividendCompanies]:
+        """
+        Retrieve all non dividend companies objects.
+        """
+
+        statement = select(NonDividendCompanies)
+        return self.session.execute(
+            statement
+        ).scalar().all()
+
+    def exists(self, ticker:str)-> bool:
+        """
+        Checks whether a non dividend company exists.
+        """
+
+        return self.get_by_ticker(ticker) is not None 
+
+    def count(self)-> int:
+        """
+        Return the total number of non dividend companies.
+        """
+
+        statement = select(func.count()).select_from(NonDividendCompanies)
+        return self.session.scalar(statement)
+
+    def delete(self, nondividendcompany:NonDividendCompanies)-> None:
+        """
+        Delete a nondividend companies object.
+        """
+
+        self.session.delete(nondividendcompany)
+
+
+
+    
         
 
 
