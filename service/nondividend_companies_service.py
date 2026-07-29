@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database.models import NonDividendCompanies
 from database.repository import NonDividendCompaniesRepo
 
-class StockService:
+class NonDividendCompaniesService:
     """
     Business logic for managing the stock universer.
     """

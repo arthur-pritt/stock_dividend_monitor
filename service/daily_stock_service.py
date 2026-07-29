@@ -11,7 +11,7 @@ class DailyStockService:
         self.repository = DailyStockPriceRepo(session)
         self.session = session
 
-    def save_stock(self,dailystockprice:DailyStockPrice)-> None:
+    def save_price(self,dailystockprice:DailyStockPrice)-> None:
         """
         Save a single daily stock data.
         """
@@ -19,7 +19,7 @@ class DailyStockService:
         self.repository.save(dailystockprice)
         self.session.commit()
 
-    def save_stocks(self, dailystockprices:list[DailyStockPrice])->None:
+    def save_prices(self, dailystockprices:list[DailyStockPrice])->None:
         self.repository.save_many(dailystockprices)
         self.session.commit()
 
