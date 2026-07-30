@@ -12,29 +12,29 @@ class StockService:
         self.repository = StockRepository(session)
         self.session = session
 
-    def save_stock(self, stock:Stock)-> None:
+    def save_stock(self, stocks: list[Stock])-> None:
         """
-        Save a single stock ticker"""
-
-        self.repository.save(stock)
-        self.session.commit()
-
-    def save_stocks(self, stocks: list[Stock])-> int:
+        Save a single stock object (staged in session)
+        Delegates database execution to repository and deferes commit to orchestrator.
         """
-        Save multiple stocks.
+
+        return self.repository.save(stocks)
+
+    def save_stocks(self, records:list[dict] )-> int:
+        """
+        Save multiple stocks in batches using  list of dicts
         returns:
                number of stocks saved.
         """
 
-        self.repository.save_many(stocks)
+        self.repository.save_many(records)
         self.session.commit()
 
     def get_stock(self, ticker:str)-> Stock | None:
         """
         Retrieve one stock by ticker
         """
-
-
+        
         return self.repository.get_by_ticker(ticker)
 
     def get_all_stocks(self)->list[Stock]:
@@ -66,11 +66,7 @@ class StockService:
               False if not found
         """
 
-        deleted = self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
-        return deleted
+        return self.repository.delete(ticker)
 
     def update_stock(self, stock:Stock)-> None:
         """
@@ -78,7 +74,9 @@ class StockService:
         """
 
         self.repository.update(stock)
-        self.session.commit() 
-
         
+
+    
+
+
     
