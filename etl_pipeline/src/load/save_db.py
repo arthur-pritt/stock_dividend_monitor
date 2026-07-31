@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 import pandas as pd 
 from database.models import (
-    Stock
- #   DailyStockPrice,
+    Stock,
+    DailyStockPrice
  #   DividendCompanies,
  #   NonDividendCompanies,
  #   Dividend, 
@@ -15,7 +15,7 @@ from database.models import (
     
 )
 from service.stock_service import StockService
-#from service.daily_stock_service import DailyStockService
+from service.daily_stock_service import DailyStockService
 #from service.dividend_companies_service import DividendCompaniesService
 #from service.nondividend_companies_service import NonDividendCompaniesService
 #from service.dividend_service import DividendService
@@ -45,28 +45,24 @@ def load_stocks(data:pd.DataFrame, session: Session)-> int:
         return 0
 
     records = data.to_dict('records')
-
     service =  StockService(session)
     return service.save_stocks(records)
 
-#def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
+def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
     """
     Load daily stock prices from a DataFrame
     into PostgreSQL.
     """
 
-    prices=[
-        DailyStockPrice(
-            ticker=row['ticker'],
-            recorded_date= row['recorded_date'],
-            adj_close= row['adj_close'],
-            month= row['month'],
-            year = row['year']
-        )
-        for _, row in data.iterrows()
-    ]
+    if data.empty:
+        return 0
+
+    db_columns=['ticker','recorded_date','adj_close']
+    clean_df=data[db_columns]
+    
+    records = clean_df.to_dict('records')
     service = DailyStockService(session)
-    return service.save_prices(prices)
+    return service.save_prices(records)
 
 #def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
 

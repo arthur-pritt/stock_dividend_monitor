@@ -7,21 +7,28 @@ class DailyStockService:
     Business logic for managing the daily stock price.
     """
 
-    def __int__(self,session:Session):
+    def __init__(self,session:Session):
         self.repository = DailyStockPriceRepo(session)
         self.session = session
 
     def save_price(self,dailystockprice:DailyStockPrice)-> None:
         """
         Save a single daily stock data.
+        Delegates database execution to repository and deferes commit to orchestrator.
         """
 
-        self.repository.save(dailystockprice)
-        self.session.commit()
+        return self.repository.save(dailystockprice)
+        
 
-    def save_prices(self, dailystockprices:list[DailyStockPrice])->None:
-        self.repository.save_many(dailystockprices)
+    def save_prices(self, dailystockprices:list[DailyStockPrice])->int:
+        """
+        Save multiple stocks in batches using list of dicts
+        returns a number of stocks saved
+        """
+
+        count= self.repository.save_many(dailystockprices)
         self.session.commit()
+        return count
 
     def get_stock(self,ticker:str)-> DailyStockPrice | None:
         """
@@ -58,11 +65,7 @@ class DailyStockService:
         False if not found
         """
 
-        deleted= self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
-        return deleted 
+        return self.repository.delete(ticker)
 
     def update_stock(self, dailystockprice:DailyStockPrice)-> None:
         """
@@ -70,7 +73,7 @@ class DailyStockService:
         """
 
         self.repository.update(dailystockprice)
-        self.session.commit()
+        
 
         
 

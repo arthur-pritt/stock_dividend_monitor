@@ -6,8 +6,8 @@ from sqlalchemy import(
 )
 
 from database.models import(
-    Stock
-    #DailyStockPrice,
+    Stock,
+    DailyStockPrice,
     #Historical90DaysData,
     #Dividend,
     #Earnings,
@@ -102,11 +102,11 @@ class StockRepository:
         return False
 
 
-#class DailyStockPriceRepo:
-    #def __init__(self, session:Session):
+class DailyStockPriceRepo:
+    def __init__(self, session:Session):
         self.session = session 
 
-    #def save(self, dailystockprice:DailyStockPrice)-> None:
+    def save(self, dailystockprice:DailyStockPrice)-> None:
         """
         Adding a single stock price object to the current session.
         Note: This method does not commit the transaction.
@@ -114,14 +114,38 @@ class StockRepository:
 
         self.session.add(dailystockprice)
 
-    #def save_many(self, dailystockprice:list[DailyStockPrice])-> None:
+    def save_many(self, records:list[dict], batch_size:int=2000)-> int:
         """
-        Adding multiple stock price objects to the current session.
-        Note: This method does not commit the transaction."""
+        Executes idempotent PostgreSQL bulk upserts in batches using dict records.
+        Returns total number of rows processed."""
 
-        self.session.add_all(dailystockprice)
+        if not records:
+            return 0
+        
+        total_processed = 0
+        #Chunk records to prevent large SQL payload limits
+        for i in range(0, len(records), batch_size):
+            chunk = records[i : i + batch_size]
+
+            #1. Build PostgreSQL insert statement
+            stmt= insert(DailyStockPrice).values(chunk)
+
+            #2. Adding Persistance behaviour (Upsert on Primary Key 'ticker')
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker','recorded_date'], #primary key or unique  constraint
+                set_={
+                    'adj_close': stmt.excluded.adj_close
+                }
+            )
+
+            #Execute bulk statement
+            result = self.session.execute(upsert_stmt)
+            total_processed +=(result.rowcount or len(chunk))
+
+
+        return total_processed
     
-    #def get_by_ticker(self, ticker:str, recorded_date)->None:
+    def get_by_ticker(self, ticker:str, recorded_date)->None:
 
         return self.session.get(
             DailyStockPrice,
@@ -132,32 +156,32 @@ class StockRepository:
             
         )
 
-    #def get_all(self)-> list[DailyStockPrice]:
+    def get_all(self)-> list[DailyStockPrice]:
         """
         Retrieve  all stock price objects.
         """
 
         statement = select(DailyStockPrice)
-        return self.session.execute(
+        return list(self.session.execute(
             statement
-        ).scalar().all()
+        ).scalars().all())
 
-    #def exists(self, ticker:str)-> bool:
+    def exists(self, ticker:str)-> bool:
         """
         Checks whether a stock price exists.
         """
 
         return self.get_by_ticker(ticker) is not None
 
-    #def count(self)-> int:
+    def count(self)-> int:
         """
         Return the total number of stock prices.
         """
 
         statement = select(func.count()).select_from(DailyStockPrice)
-        return self.session.scalar(statement)
+        return self.session.scalar(statement) or 0
 
-    #def delete(self, dailystockprice:DailyStockPrice)->None:
+    def delete(self, dailystockprice:DailyStockPrice)->None:
         """
         Delete the stock price object
         """
