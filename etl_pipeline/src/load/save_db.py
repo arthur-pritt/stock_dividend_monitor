@@ -6,7 +6,7 @@ from database.models import (
  #   DividendCompanies,
  #   NonDividendCompanies,
     Dividend, 
- #   Earnings,
+    Earnings
  #   Historical90DaysData,
  #   StockDailySegmented,
  #   DividendYieldGain,
@@ -19,7 +19,7 @@ from service.daily_stock_service import DailyStockService
 #from service.dividend_companies_service import DividendCompaniesService
 #from service.nondividend_companies_service import NonDividendCompaniesService
 from service.dividend_service import DividendService
-#from service.earning_service import EarningService
+from service.earning_service import EarningService
 #from service.historical_data_service import HistoricalDataService
 #from service.segmented_stocks_service import SegmentedStocksService
 #from service.dividend_yieldcal_service import DividendYieldService
@@ -119,19 +119,17 @@ def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
     service = DividendService(session)
     return service.save_stocks(records)
 
-#def load_earning_data(data:pd.DataFrame, session:Session)-> int:
-    earnings=[
-        Earnings(
-            ticker=row['ticker'],
-            cik=row['cik'],
-            earnings_pershare=row['earnings_pershare'],
-            quarter=row['quarter'],
-            year=row['year']
-        )
-        for _, row in data.iterrows()
-    ]
+def load_earning_data(data:pd.DataFrame, session:Session)-> int:
+    """
+    Load earning per share data for 600 nasdaq companies into PostgreSQL
+    """
+
+    if data.empty:
+        return 0
+
+    records = data.to_dict('records')
     service = EarningService(session)
-    return service.save_stocks(earnings)
+    return service.save_stocks(records)
 
 #def load_historical_data(data:pd.DataFrame, session:Session)-> int:
     historical_data=[

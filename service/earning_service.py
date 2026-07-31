@@ -6,7 +6,7 @@ class EarningService:
     """
     Business logic for managing the earning per share table."""
 
-    def __int__(self, session:Session):
+    def __init__(self, session:Session):
         self.repository = EarningsRepo(session)
         self.session = session 
 
@@ -15,15 +15,14 @@ class EarningService:
         Save a single earning per share stock ticker."""
 
         self.repository.save(earning)
-        self.session.commit()
 
-    def save_stocks(self, earnings:Earnings)-> None:
+    def save_stocks(self, earnings:list[Earnings])-> int:
         """
         Save multiple earning per share stocks.
         """
-
-        self.repository.save_many(earnings)
+        count= self.repository.save_many(earnings)
         self.session.commit()
+        return count 
 
     def get_stock(self, ticker:str)-> Earnings | None:
         """
@@ -60,16 +59,13 @@ class EarningService:
              False if not found.
         """
 
-        deleted = self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
+        return self.repository.delete(ticker)
 
     def update_stock(self, earning:Earnings)-> None:
         """
         Update an existing stock"""
 
         self.repository.update(earning)
-        self.session.commit()
+    
 
         

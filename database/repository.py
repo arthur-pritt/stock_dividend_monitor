@@ -10,7 +10,7 @@ from database.models import(
     DailyStockPrice,
     #Historical90DaysData,
     Dividend,
-    #Earnings,
+    Earnings
     #DividendCompanies,
     #DividendYieldGain,
     #NonDividendCompanies,
@@ -338,55 +338,82 @@ class DividendRepo:
 
         self.session.delete(dividend)
 
-#class EarningsRepo:
- #   def __init__(self, session: Session):
+class EarningsRepo:
+    def __init__(self, session: Session):
         self.session = session 
 
- #   def save(self, earnings:Earnings)-> None:
+    def save(self, earnings:Earnings)-> None:
         """
         Adding a single earnning object to the current session.
         Note: This method does not commit the transaction."""
 
         self.session.add(earnings)
 
-  #  def save_many(self, earnings:list[Earnings])-> None:
+    def save_many(self, records:list[dict], batch_size:int=2000)-> int:
         """
         Addning multiple stock earning price objects to the current session.
         Note: This method does not commit the transaction.
         """
 
-        self.session.add_all(Earnings)
+        if not records:
+            return 0
 
-   # def get_by_ticker(self, ticker:str)-> None:
+        total_processed = 0
+        #Chunk records to prevent large SQL payload limits
+        for i in range(0, len(records), batch_size):
+            chunk = records[i : i + batch_size]
+
+            #1. Build PostgreSQL insert statement
+            stmt = insert(Earnings).values(chunk)
+
+            #2. Adding Persistence behaviour(Upsert on Primary Key "ticker")
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker', 'quarter', 'year'], #Primary key or unique constraint
+                set_={
+                    'cik':stmt.excluded.cik,
+                    'earnings_pershare': stmt.excluded.earnings_pershare
+
+                }
+            )
+
+            #3.Execute bulk statement
+            result = self.session.execute(upsert_stmt)
+            total_processed +=(result.rowcount or len(chunk))
+
+        return total_processed
+
+    def get_by_ticker(self, ticker:str, quarter, year)-> None:
         return self.session.get(
             Earnings,
-            ticker
+            ticker,
+            quarter,
+            year
         )
-    #def get_all(self)-> list[Earnings]:
+    def get_all(self)-> list[Earnings]:
         """
         Retrieve all earning price objects.
         """
 
         statement = select(Earnings)
-        return self.session.execute(
+        return list(self.session.execute(
             statement
-        ).scalar().all()
+        ).scalars().all())
 
-  #  def exists(self, ticker:str)-> bool:
+    def exists(self, ticker:str)-> bool:
         """
         Checks whether a stock price exists.
         """
         return self.get_by_ticker(ticker) is not None 
 
-   # def count(self)-> int:
+    def count(self)-> int:
         """"
         Return the total number of stock prices.
         """
 
         statement =select(func.now()).select_from(Earnings)
-        return self.session.scalar(statement)
+        return self.session.scalar(statement) or 0
 
-    #def delete(self, earnings:Earnings)-> None:
+    def delete(self, earnings:Earnings)-> None:
         """
         Delete the earning price object.
         """
