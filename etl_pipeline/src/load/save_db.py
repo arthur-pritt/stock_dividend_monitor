@@ -1,33 +1,34 @@
 from sqlalchemy.orm import Session
+import pandas as pd 
 from database.models import (
-    Stock,
-    DailyStockPrice,
-    DividendCompanies,
-    NonDividendCompanies,
-    Dividend, 
-    Earnings,
-    Historical90DaysData,
-    StockDailySegmented,
-    DividendYieldGain,
-    StockDailyWatchlist,
-    StockDailyFlat
-    
+    Stock
+ #   DailyStockPrice,
+ #   DividendCompanies,
+ #   NonDividendCompanies,
+ #   Dividend, 
+ #   Earnings,
+ #   Historical90DaysData,
+ #   StockDailySegmented,
+ #   DividendYieldGain,
+ #   StockDailyWatchlist,
+ #   StockDailyFlat   
     
 )
 from service.stock_service import StockService
-from service.daily_stock_service import DailyStockService
-from service.dividend_companies_service import DividendCompaniesService
-from service.nondividend_companies_service import NonDividendCompaniesService
-from service.dividend_service import DividendService
-from service.earning_service import EarningService
-from service.historical_data_service import HistoricalDataService
-from service.segmented_stocks_service import SegmentedStocksService
-from service.dividend_yieldcal_service import DividendYieldService
-from service.watchlist_stocks_service import WatchlistService
-from service.stockdaily_service import StockDailyFService
+#from service.daily_stock_service import DailyStockService
+#from service.dividend_companies_service import DividendCompaniesService
+#from service.nondividend_companies_service import NonDividendCompaniesService
+#from service.dividend_service import DividendService
+#from service.earning_service import EarningService
+#from service.historical_data_service import HistoricalDataService
+#from service.segmented_stocks_service import SegmentedStocksService
+#from service.dividend_yieldcal_service import DividendYieldService
+#from service.watchlist_stocks_service import WatchlistService
+#from service.stockdaily_service import StockDailyFService
 
+from config.logging_config import get_logger
+logger = get_logger(__name__)
 
-import pandas as pd 
 
 def load_stocks(data:pd.DataFrame, session: Session)-> int:
 
@@ -40,19 +41,15 @@ def load_stocks(data:pd.DataFrame, session: Session)-> int:
     
     """
 
-    stocks = [
-        Stock(
-            ticker=row['ticker'],
-            name=row['name'],
-            market_cap=row['market_cap']
-        )
-        for _, row in data.iterrows()
-    ]
+    if data.empty:
+        return 0
+
+    records = data.to_dict('records')
 
     service =  StockService(session)
-    return service.save_stocks(stocks)
+    return service.save_stocks(records)
 
-def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
+#def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
     """
     Load daily stock prices from a DataFrame
     into PostgreSQL.
@@ -71,7 +68,7 @@ def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
     service = DailyStockService(session)
     return service.save_prices(prices)
 
-def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
+#def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
 
     dividend_companies=[
         DividendCompanies(
@@ -89,7 +86,7 @@ def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
     service = DividendCompaniesService(session)
     return service.save_stocks(dividend_companies)
 
-def load_non_dividend_companies(data:pd.DataFrame, session:Session)-> int:
+#def load_non_dividend_companies(data:pd.DataFrame, session:Session)-> int:
     non_dividend_companies=[
         NonDividendCompanies(
             ticker=row['tciker'],
@@ -110,7 +107,7 @@ def load_non_dividend_companies(data:pd.DataFrame, session:Session)-> int:
     service= NonDividendCompaniesService(session)
     return service.save_stocks(non_dividend_companies)
 
-def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
+#def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
     dividends = [
         Dividend(
             ticker=row['ticker'],
@@ -127,7 +124,7 @@ def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
     service = DividendService(session)
     return service.save_stocks(dividends)
 
-def load_earning_data(data:pd.DataFrame, session:Session)-> int:
+#def load_earning_data(data:pd.DataFrame, session:Session)-> int:
     earnings=[
         Earnings(
             ticker=row['ticker'],
@@ -141,7 +138,7 @@ def load_earning_data(data:pd.DataFrame, session:Session)-> int:
     service = EarningService(session)
     return service.save_stocks(earnings)
 
-def load_historical_data(data:pd.DataFrame, session:Session)-> int:
+#def load_historical_data(data:pd.DataFrame, session:Session)-> int:
     historical_data=[
         Historical90DaysData(
            ticker=row['ticker'],
@@ -159,7 +156,7 @@ def load_historical_data(data:pd.DataFrame, session:Session)-> int:
     ]
     service =HistoricalDataService(session)
     return service.save_stocks(historical_data)
-def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
+#def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
     segmented_tickers=[
         StockDailySegmented(
             ticker=row['ticker'],
@@ -179,7 +176,7 @@ def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
     service = SegmentedStocksService(session)
     return service.save_stocks(segmented_tickers)
 
-def load_dividend_yield_calculator(data:pd.DataFrame, session:Session)-> int:
+##def load_dividend_yield_calculator(data:pd.DataFrame, session:Session)-> int:
     dividend_yield_cal=[
         DividendYieldGain(
             ticker = row['ticker'],
@@ -212,7 +209,7 @@ def load_dividend_yield_calculator(data:pd.DataFrame, session:Session)-> int:
     service = DividendYieldService(session)
     return service.save_stocks(dividend_yield_cal)
 
-def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
+#def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
     watchlist=[
         StockDailyWatchlist(
             ticker=row['ticker'],
@@ -240,7 +237,7 @@ def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
     service= WatchlistService(session)
     return service.save_stocks(watchlist)
 
-def load_complete_stock_table(data:pd.DataFrame, session:Session)-> int:
+#def load_complete_stock_table(data:pd.DataFrame, session:Session)-> int:
     complete_table =[
         StockDailyFlat(
             ticker=row['ticker'],

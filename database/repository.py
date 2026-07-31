@@ -6,17 +6,17 @@ from sqlalchemy import(
 )
 
 from database.models import(
-    Stock,
-    DailyStockPrice,
-    Historical90DaysData,
-    Dividend,
-    Earnings,
-    DividendCompanies,
-    DividendYieldGain,
-    NonDividendCompanies,
-    StockDailyWatchlist,
-    StockDailyFlat,
-    StockDailySegmented
+    Stock
+    #DailyStockPrice,
+    #Historical90DaysData,
+    #Dividend,
+    #Earnings,
+    #DividendCompanies,
+    #DividendYieldGain,
+    #NonDividendCompanies,
+    #StockDailyWatchlist,
+    #StockDailyFlat,
+    #StockDailySegmented
 )
 
 class StockRepository:

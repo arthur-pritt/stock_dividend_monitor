@@ -27,8 +27,9 @@ class StockService:
                number of stocks saved.
         """
 
-        self.repository.save_many(records)
+        count= self.repository.save_many(records)
         self.session.commit()
+        return count
 
     def get_stock(self, ticker:str)-> Stock | None:
         """
