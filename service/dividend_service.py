@@ -16,22 +16,28 @@ class DividendService:
         Save a single dividend ticker
         """
 
-        self.repository.save(dividend)
-        self.session.commit()
+        return self.repository.save(dividend)
 
     def save_stocks(self, dividend:list[Dividend])-> int:
         """
         Save multiple dividend tickers and return saved stocks ticker.
         """
 
-        self.repository.save_many(dividend)
+        count= self.repository.save_many(dividend)
         self.session.commit()
+        return count 
 
     def get_stock(self, ticker:str)-> Dividend | None:
         """
-        Retrieve one dividend ticker.
+        Retrieve one dividend per share by ticker.
         """
 
+        return self.repository.get_by_ticker(ticker)
+
+    def get_all_stocks(self)-> list[Dividend]:
+        """
+        Retrieve every daily stock price data
+        """
         return self.repository.get_all()
 
     def stock_exists(self, ticker:str)-> bool:
@@ -52,10 +58,7 @@ class DividendService:
         """
         Delete one stock. Returns true if deleted and false if not found."""
 
-        deleted = self.repository.delete(ticker)
-        if deleted:
-            self.session.commit()
-        return deleted 
+        return self.repository.delete(ticker)
 
     def update_stock(self, dividend:Dividend)-> None:
         """
@@ -63,6 +66,6 @@ class DividendService:
         """
 
         self.repository.update(dividend)
-        self.session.commit()
+    
 
         

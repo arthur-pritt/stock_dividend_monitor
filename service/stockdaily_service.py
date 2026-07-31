@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from database.models import StockDailyFlat
 from database.repository import StockDailyFlatRepo
 
-class StockDailyService:
+class StockDailyFService:
     """
     Business logic for managing the  daily stock table.
     """
@@ -24,8 +24,9 @@ class StockDailyService:
         Save multiple stock daily price.
         """
 
-        self.repository.save_many(stockdailyflats)
+        count= self.repository.save_many(stockdailyflats)
         self.session.commit()
+        return count 
 
     def get_stock(self, ticker:str)-> StockDailyFlat | None:
         """

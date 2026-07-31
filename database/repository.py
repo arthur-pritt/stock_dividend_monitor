@@ -9,7 +9,7 @@ from database.models import(
     Stock,
     DailyStockPrice,
     #Historical90DaysData,
-    #Dividend,
+    Dividend,
     #Earnings,
     #DividendCompanies,
     #DividendYieldGain,
@@ -251,11 +251,11 @@ class DailyStockPriceRepo:
         self.session.delete(historical90daysdata)
 
 
-#class DividendRepo:
- #   def __init__(self, dividend:Dividend)-> None:
-        self.session = self.session
+class DividendRepo:
+    def __init__(self, session:Session):
+        self.session = session
 
-  #  def save(self, dividend:Dividend)-> None:
+    def save(self, dividend:Dividend)-> None:
         """
         Adding a single dividend object to the current session.
         Note: This method does not commit the transaction.
@@ -263,46 +263,76 @@ class DailyStockPriceRepo:
 
         self.session.add(dividend)
 
-   # def save_many(self, dividend:list[Dividend])-> None:
+    def save_many(self, records:list[dict], batch_size:int=2000)-> int:
         """
         Adding multple stock dividend objects to the current session.
         Note: Method does not commit the transaction
         ."""
 
-        self.session.add_all(dividend)
+        if not records:
+            return 0
 
-    #def get_by_ticker(self, ticker:str)-> None:
+        total_processed = 0
+        #Chunk records to prevent large SQL payload limits
+        for i in range(0, len(records), batch_size):
+            chunk = records[i : i + batch_size]
+
+            #1. Build PostgreSQL insert statement
+            stmt= insert(Dividend).values(chunk)
+
+            #2. Adding Persistence behaviour (Upsert on Primary Key "ticker")
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker','quarter','year'], #Primary key or unique constraint
+                set_={
+                    'cik': stmt.excluded.cik,
+                    'dividend_per_share': stmt.excluded.dividend_per_share,
+                    'raw_payout':stmt.excluded.raw_payout
+
+                }
+            )
+
+            #Execute bulk statement
+            result = self.session.execute(upsert_stmt)
+            total_processed +=(result.rowcount or len(chunk))
+
+        return total_processed
+
+    def get_by_ticker(self, ticker:str, quarter, year)-> None:
 
         return self.session.get(
             Dividend,
-            ticker
+            ticker,
+            quarter,
+            year
+            
         )
 
-    #def get_all(self)-> list[Dividend]:
+    def get_all(self)-> list[Dividend]:
         """
         Retrieve all dividend objects.
         """
 
         statement = select(Dividend)
-        return self.session.execute(
+        return list(self.session.execute(
             statement
-        ).scalar().all()
+        ).scalars().all())
 
-    #def exists(self, ticker:str)-> bool:
+    def exists(self, ticker:str)-> bool:
         """
         Checks whether  a dividend stock exists.
         """
 
         return self.get_by_ticker(ticker) is not None
 
-    #def count(self)-> int: 
+    def count(self)-> int: 
         """
         Return the total number of dividend paying stocks.
         """
 
         statement = select(func.count()).select_from(Dividend)
+        return self.session.scalar(statement) or 0
 
-    #def delete(self, dividend:Dividend)->None:
+    def delete(self, dividend:Dividend)->None:
         """
         Delete a dividend stock object."""
 

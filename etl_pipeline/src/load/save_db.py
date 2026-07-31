@@ -2,10 +2,10 @@ from sqlalchemy.orm import Session
 import pandas as pd 
 from database.models import (
     Stock,
-    DailyStockPrice
+    DailyStockPrice,
  #   DividendCompanies,
  #   NonDividendCompanies,
- #   Dividend, 
+    Dividend, 
  #   Earnings,
  #   Historical90DaysData,
  #   StockDailySegmented,
@@ -18,7 +18,7 @@ from service.stock_service import StockService
 from service.daily_stock_service import DailyStockService
 #from service.dividend_companies_service import DividendCompaniesService
 #from service.nondividend_companies_service import NonDividendCompaniesService
-#from service.dividend_service import DividendService
+from service.dividend_service import DividendService
 #from service.earning_service import EarningService
 #from service.historical_data_service import HistoricalDataService
 #from service.segmented_stocks_service import SegmentedStocksService
@@ -103,22 +103,21 @@ def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
     service= NonDividendCompaniesService(session)
     return service.save_stocks(non_dividend_companies)
 
-#def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
-    dividends = [
-        Dividend(
-            ticker=row['ticker'],
-            cik=row['cik'],
-            dividend_per_share=row['dividend_per_share'],
-            raw_payout=row['raw_payout'],
-            frequency=row['frequency'],
-            quarter=row['quarter'],
-            year=row['year']
+def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
+    """
+    Load dividend per share data for 600 nasdaq companies into postgreSQL.
+    """
 
-        )
-        for _, row in data.iterrows()
-    ]
+    if data.empty:
+        return 0
+
+    db_columns=['ticker','cik','dividend_per_share', 'raw_payout', 'quarter',
+                'year']
+    clean_df=data[db_columns]
+
+    records = clean_df.to_dict('records')
     service = DividendService(session)
-    return service.save_stocks(dividends)
+    return service.save_stocks(records)
 
 #def load_earning_data(data:pd.DataFrame, session:Session)-> int:
     earnings=[
