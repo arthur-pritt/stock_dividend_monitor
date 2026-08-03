@@ -3,28 +3,28 @@ import pandas as pd
 from database.models import (
     Stock,
     DailyStockPrice,
- #   DividendCompanies,
+    DividendCompanies,
  #   NonDividendCompanies,
     Dividend, 
-    Earnings
- #   Historical90DaysData,
+    Earnings,
+    Historical90DaysData,
  #   StockDailySegmented,
  #   DividendYieldGain,
  #   StockDailyWatchlist,
- #   StockDailyFlat   
+    StockDailyFlat   
     
 )
 from service.stock_service import StockService
 from service.daily_stock_service import DailyStockService
-#from service.dividend_companies_service import DividendCompaniesService
+from service.dividend_companies_service import DividendCompaniesService
 #from service.nondividend_companies_service import NonDividendCompaniesService
 from service.dividend_service import DividendService
 from service.earning_service import EarningService
-#from service.historical_data_service import HistoricalDataService
+from service.historical_data_service import HistoricalDataService
 #from service.segmented_stocks_service import SegmentedStocksService
 #from service.dividend_yieldcal_service import DividendYieldService
 #from service.watchlist_stocks_service import WatchlistService
-#from service.stockdaily_service import StockDailyFService
+from service.stockdaily_service import StockDailyFService
 
 from config.logging_config import get_logger
 logger = get_logger(__name__)
@@ -64,23 +64,16 @@ def load_daily_stock_prices(data:pd.DataFrame, session:Session)-> int:
     service = DailyStockService(session)
     return service.save_prices(records)
 
-#def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
+def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
+    """
+    Load dividen companies into the PostgreSQL."""
 
-    dividend_companies=[
-        DividendCompanies(
-            ticker=row['ticker'],
-            cik=row['ticker'],
-            dividend_per_share=row['dividend_per_share'],
-            raw_payout=row['raw_payout'],
-            frequency=row['frequency'],
-            quarter=row['quarter'],
-            year=row['year']
-        )
-        for _, row in data.iterrows()
+    if data.empty:
+        return 0
 
-    ]
+    records = data.to_dict('records')
     service = DividendCompaniesService(session)
-    return service.save_stocks(dividend_companies)
+    return service.save_stocks(records)
 
 #def load_non_dividend_companies(data:pd.DataFrame, session:Session)-> int:
     non_dividend_companies=[
@@ -131,24 +124,16 @@ def load_earning_data(data:pd.DataFrame, session:Session)-> int:
     service = EarningService(session)
     return service.save_stocks(records)
 
-#def load_historical_data(data:pd.DataFrame, session:Session)-> int:
-    historical_data=[
-        Historical90DaysData(
-           ticker=row['ticker'],
-           recorded_date=row['recorded_date'],
-           adjclose=row['adjclose'],
-           open=row['open'],
-           high=row['low'],
-           close=row['close'],
-           volume=row['volume'],
-           actual_days=row['actual_days'],
-           coverage_pct=row['coverage_pct'],
-           is_flagged=row['is_flagged'] 
-        )
-        for _, row in data.iterrows()
-    ]
+def load_historical_data(data:pd.DataFrame, session:Session)-> int:
+    """
+    Load historical data into PostgreSQL.
+    """
+    if data.empty:
+        return 0
+
+    records = data.to_dict('records')
     service =HistoricalDataService(session)
-    return service.save_stocks(historical_data)
+    return service.save_stocks(records)
 #def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
     segmented_tickers=[
         StockDailySegmented(
@@ -230,25 +215,23 @@ def load_earning_data(data:pd.DataFrame, session:Session)-> int:
     service= WatchlistService(session)
     return service.save_stocks(watchlist)
 
-#def load_complete_stock_table(data:pd.DataFrame, session:Session)-> int:
-    complete_table =[
-        StockDailyFlat(
-            ticker=row['ticker'],
-            name=row['name'],
-            recorded_date=row['recorded_date'],
-            market_cap=row['market_cap'],
-            adj_close=row['adj_close'],
-            dividend_per_share=row['dividend_per_share'],
-            earnings_pershare=row['earnings_pershare'],
-            raw_payout=row['raw_payout'],
-            frequency=row['frequency'],
-            quarter=row['quarter'],
-            year=row['year']
-        )
-        for _, row in data.iterrows()
-    ]
-    service = StockDailyFService
-    return service.save_stocks(complete_table)
+def load_complete_stock_table(data:pd.DataFrame, session:Session)-> int:
+    """
+    Loading complete dataframe into PostgreSQL """
+    
+    if data.empty:
+        return 0
+
+    data['raw_payout'] = data['raw_payout'].fillna(0)
+    data['frequency'] = data['frequency'].fillna('None')
+    data['quarter'] = data['quarter'].fillna(0).astype('Int64')
+    data['year'] = data['year'].fillna(0).astype('Int64')
+
+    records = data.to_dict('records')
+    service = StockDailyFService(session)
+    return service.save_stocks(records)
+
+
 
 
 

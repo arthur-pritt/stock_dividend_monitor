@@ -17,13 +17,13 @@ class HistoricalDataService:
         """
 
         self.repoitory.save(historical90daysdata)
-        self.session.commit()
 
     def save_stocks(self, historical90daysdatas: list[Historical90DaysDataRepo])-> int:
         """
         Retrieve multiple historical ticker data."""
-        self.repository.save_many(historical90daysdatas)
+        count=self.repository.save_many(historical90daysdatas)
         self.session.commit()
+        return count 
 
     def get_stock(self, ticker:str)-> Historical90DaysData | None:
         """
@@ -60,11 +60,7 @@ class HistoricalDataService:
                False if not found
         """
 
-        deleted = self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
-        return deleted 
+        return self.repository.delete(ticker)
 
     def update_stock(self, historical90daydata:Historical90DaysData)-> None:
         """
@@ -72,7 +68,7 @@ class HistoricalDataService:
         """
 
         self.repository.update(historical90daydata)
-        self.session.commit()
+
 
         
 

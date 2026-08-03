@@ -209,7 +209,7 @@ class StockDailyFlat(Base):
 
     ticker:Mapped[str]= mapped_column(
         Text,
-        nullable=False 
+        nullable=False
     )
 
     name:Mapped[str] = mapped_column(
@@ -219,7 +219,7 @@ class StockDailyFlat(Base):
 
     recorded_date:Mapped[date] = mapped_column(
         Date,
-        nullable=False 
+        nullable=False
     )
 
     market_cap: Mapped[Decimal] = mapped_column(
