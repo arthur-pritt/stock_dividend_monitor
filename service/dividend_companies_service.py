@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database.models import DividendCompanies
 from database.repository import DividendCompaniesRepo
 
-class StockService:
+class DividendCompaniesService:
     """
     Business logic for managing the stock universer.
     """
@@ -17,17 +17,18 @@ class StockService:
         Save a single stock ticker"""
 
         self.repository.save(dividendcompany)
-        self.session.commit()
+        
 
-    def save_stocks(self, dividendcompanies: list[DividendCompanies])-> int:
+    def save_stocks(self, records: list[DividendCompanies])-> int:
         """
         Save multiple stocks.
         returns:
                number of stocks saved.
         """
 
-        self.repository.save_many(dividendcompanies)
+        count= self.repository.save_many(records)
         self.session.commit()
+        return count
 
     def get_stock(self, ticker:str)-> DividendCompanies | None:
         """
@@ -65,11 +66,7 @@ class StockService:
               False if not found
         """
 
-        deleted = self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
-        return deleted
+        return self.repository.delete(ticker)
 
     def update_stock(self, dividendcompany:DividendCompanies)-> None:
         """
@@ -77,4 +74,4 @@ class StockService:
         """
 
         self.repository.update(dividendcompany)
-        self.session.commit() 
+        

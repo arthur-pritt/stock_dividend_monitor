@@ -285,6 +285,11 @@ class StockDailySegmented(Base):
         nullable=False 
     )
 
+    market_cap: Mapped[Decimal] = mapped_column(
+        Numeric(20,2),
+        nullable=False
+    )
+
     recorded_date: Mapped[date]= mapped_column(
         Date,
         primary_key=True

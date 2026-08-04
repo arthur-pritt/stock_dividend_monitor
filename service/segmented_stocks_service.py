@@ -17,15 +17,22 @@ class SegmentedStocksService:
         """
 
         self.repository.save(stockdailysegmented)
-        self.session.commit()
 
     def save_stocks(self, stockdailysegmenteds: list[StockDailySegmented])-> int:
         """
         Save multiple stock segmented tickers.
         """
 
-        self.repository.save_many(stockdailysegmenteds)
+        count= self.repository.save_many(stockdailysegmenteds)
         self.session.commit()
+        return count   
+
+    def get_stock(self, ticker:str)-> StockDailySegmented | None:
+        """
+        Retrieve one stock by ticker.
+        """
+
+        return self.repository.get_by_ticker(ticker) 
 
     def get_all_stocks(self)-> list[StockDailySegmented]:
         """
@@ -49,10 +56,8 @@ class SegmentedStocksService:
     def delete_stock(self, ticker:str)-> bool:
         """
         Delete one stock and return true if deleted and false if not found."""
-        deleted = self.repository.delete(ticker)
-        if deleted:
-            self.session.commit()
-        return deleted 
+
+        return self.repository.delete(ticker)
 
     def update_stock(self, segmented_stock:StockDailySegmented)-> None:
         """"
@@ -60,6 +65,6 @@ class SegmentedStocksService:
         """
 
         self.repository.update(segmented_stock)
-        self.session.commit()
+        
 
         

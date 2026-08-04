@@ -8,7 +8,7 @@ from database.models import (
     Dividend, 
     Earnings,
     Historical90DaysData,
- #   StockDailySegmented,
+    StockDailySegmented,
  #   DividendYieldGain,
  #   StockDailyWatchlist,
     StockDailyFlat   
@@ -21,7 +21,7 @@ from service.nondividend_companies_service import NonDividendCompaniesService
 from service.dividend_service import DividendService
 from service.earning_service import EarningService
 from service.historical_data_service import HistoricalDataService
-#from service.segmented_stocks_service import SegmentedStocksService
+from service.segmented_stocks_service import SegmentedStocksService
 #from service.dividend_yieldcal_service import DividendYieldService
 #from service.watchlist_stocks_service import WatchlistService
 from service.stockdaily_service import StockDailyFService
@@ -135,25 +135,17 @@ def load_historical_data(data:pd.DataFrame, session:Session)-> int:
     records = data.to_dict('records')
     service =HistoricalDataService(session)
     return service.save_stocks(records)
-#def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
-    segmented_tickers=[
-        StockDailySegmented(
-            ticker=row['ticker'],
-            name=row['name'],
-            market_cap=row['market_cap'],
-            recorded_date=row['recorded_date'],
-            adj_close=row['adj_close'],
-            dividend_per_share=row['dividend_per_share'],
-            raw_payout=row['raw_payout'],
-            earnings_pershare=row['earnings_pershare'],
-            quarter=row['quarter'],
-            year=row['year'],
-            dividend_status=row['dividend_status']
-            )
-            for _, row in data.iterrows()
-    ]
+def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
+    """
+    Loading segmented ticker sinto the PostgreSQL database.
+    """
+
+    if data.empty:
+        return 0
+
+    records = data.to_dict('records')
     service = SegmentedStocksService(session)
-    return service.save_stocks(segmented_tickers)
+    return service.save_stocks(records)
 
 ##def load_dividend_yield_calculator(data:pd.DataFrame, session:Session)-> int:
     dividend_yield_cal=[
