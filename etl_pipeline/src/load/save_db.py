@@ -4,7 +4,7 @@ from database.models import (
     Stock,
     DailyStockPrice,
     DividendCompanies,
- #   NonDividendCompanies,
+    NonDividendCompanies,
     Dividend, 
     Earnings,
     Historical90DaysData,
@@ -17,7 +17,7 @@ from database.models import (
 from service.stock_service import StockService
 from service.daily_stock_service import DailyStockService
 from service.dividend_companies_service import DividendCompaniesService
-#from service.nondividend_companies_service import NonDividendCompaniesService
+from service.nondividend_companies_service import NonDividendCompaniesService
 from service.dividend_service import DividendService
 from service.earning_service import EarningService
 from service.historical_data_service import HistoricalDataService
@@ -75,26 +75,28 @@ def load_dividend_companies(data:pd.DataFrame, session:Session)-> int:
     service = DividendCompaniesService(session)
     return service.save_stocks(records)
 
-#def load_non_dividend_companies(data:pd.DataFrame, session:Session)-> int:
-    non_dividend_companies=[
-        NonDividendCompanies(
-            ticker=row['tciker'],
-            name=row['name'],
-            market_cap=row['market_cap'],
-            recorded_date=row['recorded_date'],
-            adj_close=row['adj_close'],
-            dividend_per_share=row['dividend_per_share'],
-            raw_payout=row['raw_payout'],
-            earnings_pershare= row['earnings_pershare'],
-            quarter=row['quarter'],
-            year=row['year'],
-            dividend_status=row['dividend_status']
-        )
-        for _, row in data.iterrows()
-    ]
+def load_non_dividend_companies(data:pd.DataFrame, session:Session)-> int:
+    """
+    Load non dividend companies into the PostgreSQL.
+    """
 
-    service= NonDividendCompaniesService(session)
-    return service.save_stocks(non_dividend_companies)
+    if data.empty:
+        return 0
+
+    db_columns =['ticker',
+                 'recorded_date',
+                 'name',
+                 'market_cap',
+                 'adj_close',
+                 'earnings_pershare',
+                 'dividend_status',
+                 'quarter',
+                 'year']
+    clean_df=data[db_columns]
+
+    records = clean_df.to_dict('records')
+    service = NonDividendCompaniesService(session)
+    return service.save_stocks(records)
 
 def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
     """
@@ -104,8 +106,7 @@ def load_dividend_data(data:pd.DataFrame, session:Session)-> int:
     if data.empty:
         return 0
 
-    db_columns=['ticker','cik','dividend_per_share', 'raw_payout', 'quarter',
-                'year']
+    db_columns=['ticker', 'cik','dividend_per_share','raw_payout','quarter', 'year']
     clean_df=data[db_columns]
 
     records = clean_df.to_dict('records')

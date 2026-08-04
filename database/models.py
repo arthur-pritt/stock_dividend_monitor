@@ -244,22 +244,22 @@ class StockDailyFlat(Base):
 
     raw_payout: Mapped[Decimal]= mapped_column(
         Numeric(10,2),
-        nullable= False
+        nullable= True
     )
 
     frequency : Mapped[str] = mapped_column(
         Text,
-        nullable=False 
+        nullable=True
     )
 
     quarter : Mapped[BigInteger] = mapped_column(
         BigInteger,
-        nullable=False 
+        nullable=True
     )
 
     year : Mapped[int] = mapped_column(
         BigInteger,
-        nullable=False 
+        nullable=True
     )
 
     created_at : Mapped[DateTime]= mapped_column(
@@ -588,7 +588,7 @@ class DividendCompanies(Base):
 
     frequency: Mapped[str]= mapped_column(
         Text, 
-        nullable=False
+        nullable=False 
     )
 
     quarter: Mapped[int]= mapped_column(

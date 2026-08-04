@@ -13,7 +13,7 @@ from database.models import(
     Earnings,
     DividendCompanies,
     #DividendYieldGain,
-    #NonDividendCompanies,
+    NonDividendCompanies,
     #StockDailyWatchlist,
     StockDailyFlat
     #StockDailySegmented
@@ -795,11 +795,11 @@ class DividendCompaniesRepo:
 
         self.session.delete(dividendcompany)
 
-#class NonDividendCompaniesRepo:
- #   def __int__(self, session:Session):
+class NonDividendCompaniesRepo:
+    def __init__(self, session:Session):
         self.session = session 
 
-  #  def save(self, nondividendcompany:NonDividendCompanies)-> None:
+    def save(self, nondividendcompany:NonDividendCompanies)-> None:
         """
         Adding a single non dividend company to the current session.
         Note: This method does not commit the transaction.
@@ -807,46 +807,74 @@ class DividendCompaniesRepo:
 
         self.session.add(nondividendcompany)
 
-   # def save_many(self, nondividendcompanies:NonDividendCompanies)-> None:
+    def save_many(self, records:list[NonDividendCompanies], batch_size:int=2000)-> int:
         """
         Adding multiple non dividend companies to the current session.
         Note: This method does not commit the transaction.
         """
 
-        self.session.add_all(nondividendcompanies)
+        if not records:
+            return 0
 
- #   def get_by_ticker(self, ticker:str)-> None:
+        total_processed = 0
+        #Chunk records to prevent large SQL payload limits
+        for i in range(0, len(records), batch_size):
+            chunk = records[i : i + batch_size]
+
+            #1. Build PostgreSQL insert statement
+            stmt = insert(NonDividendCompanies).values(chunk)
+
+            #2. Adding Persistence behaviour (Upsert on Primary key)
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker', 'recorded_date'],
+                set_={
+                    'name': stmt.excluded.name,
+                    'market_cap':stmt.excluded.market_cap,
+                    'adj_close':stmt.excluded.adj_close,
+                    'earnings_pershare':stmt.excluded.earnings_pershare,
+                    'quarter':stmt.excluded.quarter,
+                    'dividend_status':stmt.excluded.dividend_status,
+                    'year':stmt.excluded.year
+                }
+            )
+
+            #3. Execute builk statement
+            result = self.session.execute(upsert_stmt)
+            total_processed +=(result.rowcount or len(chunk))
+        return total_processed
+
+    def get_by_ticker(self, ticker:str, recorded_date)-> None:
         return self.session.get(
             NonDividendCompanies,
-            ticker
+            ticker,
+            recorded_date
         )
 
-  #  def get_all(self)-> list[NonDividendCompanies]:
+    def get_all(self)-> list[NonDividendCompanies]:
         """
         Retrieve all non dividend companies objects.
         """
 
         statement = select(NonDividendCompanies)
-        return self.session.execute(
+        return list(self.session.execute(
             statement
-        ).scalar().all()
+        ).scalars().all())
 
- #   def exists(self, ticker:str)-> bool:
+    def exists(self, ticker:str)-> bool:
         """
         Checks whether a non dividend company exists.
         """
-
         return self.get_by_ticker(ticker) is not None 
 
-  #  def count(self)-> int:
+    def count(self)-> int:
         """
         Return the total number of non dividend companies.
         """
 
         statement = select(func.count()).select_from(NonDividendCompanies)
-        return self.session.scalar(statement)
+        return self.session.scalar(statement) or 0
 
-   # def delete(self, nondividendcompany:NonDividendCompanies)-> None:
+    def delete(self, nondividendcompany:NonDividendCompanies)-> None:
         """
         Delete a nondividend companies object.
         """

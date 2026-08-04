@@ -17,17 +17,17 @@ class NonDividendCompaniesService:
         Save a single stock ticker"""
 
         self.repository.save(nondividendcompany)
-        self.session.commit()
 
-    def save_stocks(self, nondividendcompanies: list[NonDividendCompanies])-> int:
+    def save_stocks(self, records: list[NonDividendCompanies])-> int:
         """
         Save multiple stocks.
         returns:
                number of stocks saved.
         """
 
-        self.repository.save_many(nondividendcompanies)
+        count= self.repository.save_many(records)
         self.session.commit()
+        return count
 
     def get_stock(self, ticker:str)-> NonDividendCompanies | None:
         """
@@ -65,11 +65,7 @@ class NonDividendCompaniesService:
               False if not found
         """
 
-        deleted = self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
-        return deleted
+        return self.repository.delete(ticker)
 
     def update_stock(self, nondividendcompanies:NonDividendCompanies)-> None:
         """
@@ -77,4 +73,4 @@ class NonDividendCompaniesService:
         """
 
         self.repository.update(nondividendcompanies)
-        self.session.commit() 
+        
