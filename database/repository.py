@@ -14,7 +14,7 @@ from database.models import(
     DividendCompanies,
     #DividendYieldGain,
     NonDividendCompanies,
-    #StockDailyWatchlist,
+    StockDailyWatchlist,
     StockDailyFlat,
     StockDailySegmented
 )
@@ -626,11 +626,11 @@ class StockDailySegmentedRepo:
         """
         self.session.delete(stockdailysegmented)
 
-#class StockDailyWatchlistRepo:
- #   def __init__(self, session:Session):
+class StockDailyWatchlistRepo:
+    def __init__(self, session:Session):
         self.session = session 
 
-  #  def save(self, stockdailywatchlist: StockDailyWatchlist)-> None:
+    def save(self, stockdailywatchlist: StockDailyWatchlist)-> None:
         """
         Adding a single stock watchlist object to the current session.
         Note: This method does not commit the transaction.
@@ -638,43 +638,81 @@ class StockDailySegmentedRepo:
 
         self.session.add(stockdailywatchlist)
 
- #   def save_many(self, stockdailywatchlist:list[StockDailyWatchlist])-> None:
+    def save_many(self, records:list[StockDailyWatchlist], batch_size:int=2000)-> int:
         """
         Adding multiple stock watchlist object to the current session.
         Note: This method does not commit the transaction.
         """
 
-        self.session.add_all(stockdailywatchlist)
+        if not records:
+            return 0
 
-  #  def get_by_ticker(self, ticker:str)-> None:
+        total_processed = 0
+        #Chunk records to prevent large SQL payload limits
+        for i in range(0, len(records), batch_size):
+            chunk = records[i : i + batch_size]
+
+            #1. Build PostgreSQL insert statement
+            stmt = insert(StockDailyWatchlist).values(chunk)
+
+            #2. Adding Persistence behaviour
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker', 'latest_date'],
+                set_={
+                    'name':stmt.excluded.name,
+                    'market_cap':stmt.excluded.market_cap,
+                    'current_adjclose': stmt.excluded.current_adjclose,
+                    'baseline_date': stmt.excluded.baseline_date,
+                    'historical_adjclose' :stmt.excluded.historical_adjclose,
+                    'price_diff': stmt.excluded.price_diff,
+                    'pct_change': stmt.excluded.pct_change,
+                    'watchlist_status': stmt.excluded.watchlist_status,
+                    'dividend_per_share': stmt.excluded.dividend_per_share,
+                    'earnings_pershare' : stmt.excluded.earnings_pershare,
+                    'raw_payout': stmt.excluded.raw_payout,
+                    'actual_days': stmt.excluded.actual_days,
+                    'frequency':stmt.excluded.frequency,
+                    'quarter': stmt.excluded.quarter,
+                    'year':stmt.excluded.year
+                }
+            )
+
+            #3. Execute bulk statement
+            result = self.session.execute(upsert_stmt)
+            total_processed +=(result.rowcount or len(chunk))
+        return total_processed
+
+    def get_by_ticker(self, ticker:str, latest_date)-> None:
         return self.session.get(
             StockDailyWatchlist,
-            ticker)
+            ticker,
+            latest_date)
 
-   # def get_all(self)-> list[StockDailyWatchlist]:
+    def get_all(self)-> list[StockDailyWatchlist]:
         """
         Retrieve all the stock watchlist."""
 
         statement= select(StockDailyWatchlist)
-        return self.statement.execute(
+        return list(self.session.execute(
             statement
-        ).scalar().all()
-#    def exists(self, ticker:str)-> bool:
+        ).scalars().all())
+    
+    def exists(self, ticker:str)-> bool:
         """
         Checks whether a stock watchlist exists.
         """
 
         return self.get_by_ticker(ticker) is not None
 
- #   def count(self)-> int:
+    def count(self)-> int:
         """
         Return the total number of stocks.
         """
 
         statement = select(func.count()).select_from(StockDailyWatchlist)
-        return self.session.scalar(statement)
+        return self.session.scalar(statement) or 0
 
-#    def delete(self, stockdailywatchlist:StockDailyWatchlist)-> None:
+    def delete(self, stockdailywatchlist:StockDailyWatchlist)-> None:
         """
         Delete a stock object.
         """

@@ -8,7 +8,7 @@ class WatchlistService:
     """
 
     def __init__(self, session:Session):
-        self.repository = StockDailyWatchlistRepo
+        self.repository = StockDailyWatchlistRepo(session)
         self.session = session 
 
     def save_stock(self, stockdailywatchlist:StockDailyWatchlist)-> None:
@@ -17,21 +17,21 @@ class WatchlistService:
         """
 
         self.repository.save(stockdailywatchlist)
-        self.session.commit()
 
-    def save_stocks(self, stockdailywatchlists:list[StockDailyWatchlist])-> None:
+    def save_stocks(self, watchlist:list[StockDailyWatchlist])-> int:
         """
         Save multiple watchlist stocks.
         """
 
-        self.repository.save_many(stockdailywatchlists)
+        count= self.repository.save_many(watchlist)
         self.session.commit()
+        return count
 
     def get_stock(self, ticker:str)-> StockDailyWatchlist | None:
         """
         Retrieve one watchlist stock by ticker.
         """
-        return self.repository.get_all()
+        return self.repository.get_by_ticker(ticker)
 
     def stock_exists(self, ticker:str)-> bool:
         """
@@ -52,11 +52,7 @@ class WatchlistService:
         Delete one stock watchlist.
         """
 
-        deleted = self.repository.delete(ticker)
-        if deleted:
-            self.session.commit()
-
-        return deleted 
+        return self.repository.delete(ticker)
 
     def update_stock(self, stockdailywatchlist:StockDailyWatchlist)-> None:
         """
@@ -64,6 +60,6 @@ class WatchlistService:
         """
 
         self.repository.update(stockdailywatchlist)
-        self.session.commit()
+
 
         

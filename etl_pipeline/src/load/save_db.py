@@ -10,7 +10,7 @@ from database.models import (
     Historical90DaysData,
     StockDailySegmented,
  #   DividendYieldGain,
- #   StockDailyWatchlist,
+    StockDailyWatchlist,
     StockDailyFlat   
     
 )
@@ -23,7 +23,7 @@ from service.earning_service import EarningService
 from service.historical_data_service import HistoricalDataService
 from service.segmented_stocks_service import SegmentedStocksService
 #from service.dividend_yieldcal_service import DividendYieldService
-#from service.watchlist_stocks_service import WatchlistService
+from service.watchlist_stocks_service import WatchlistService
 from service.stockdaily_service import StockDailyFService
 
 from config.logging_config import get_logger
@@ -180,33 +180,36 @@ def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
     service = DividendYieldService(session)
     return service.save_stocks(dividend_yield_cal)
 
-#def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
-    watchlist=[
-        StockDailyWatchlist(
-            ticker=row['ticker'],
-            name=row['name'],
-            market_cap=row['market_cap'],
-            latest_date=row['latest_date'],
-            current_adjclose=row['current_adjclose'],
-            dividend_per_share=row['dividend_per_share'],
-            raw_payout=row['raw_payout'],
-            earnings_per_share=row['earnings_per_share'],
-            quarter=row['quarter'],
-            year=row['year'],
-            dividend_status=row['dividend_status'],
-            baseline_date=row['baseline_date'],
-            historical_adjclose=row['historical_adjclose'],
-            actual_days=row['actual_days'],
-            price_diff=row['price_diff'],
-            pct_change=row['pct_change'],
-            watchlist_status=row['watchlist_statu']
+def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
+    """
+    Load the 90 day price change and watchlist into PostgreSQL.
+    """
 
-        )
-        for _, row in data.iterrows()
-    ]
+    if data.empty:
+        return 0
 
-    service= WatchlistService(session)
-    return service.save_stocks(watchlist)
+    db_columns=['ticker',
+                'name',
+                'market_cap',
+                'latest_date',
+                'current_adjclose',
+                'baseline_date',
+                'historical_adjclose',
+                'price_diff',
+                'pct_change',
+                'watchlist_status',
+                'dividend_per_share',
+                'earnings_pershare',
+                'raw_payout',
+                'actual_days',
+                'frequency',
+                'quarter',
+                'year']
+    clean_df=data[db_columns]
+
+    records = clean_df.to_dict('records')
+    service = WatchlistService(session)
+    return service.save_stocks(records)
 
 def load_complete_stock_table(data:pd.DataFrame, session:Session)-> int:
     """
