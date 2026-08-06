@@ -9,7 +9,7 @@ from database.models import (
     Earnings,
     Historical90DaysData,
     StockDailySegmented,
- #   DividendYieldGain,
+    DividendYieldGain,
     StockDailyWatchlist,
     StockDailyFlat   
     
@@ -22,7 +22,7 @@ from service.dividend_service import DividendService
 from service.earning_service import EarningService
 from service.historical_data_service import HistoricalDataService
 from service.segmented_stocks_service import SegmentedStocksService
-#from service.dividend_yieldcal_service import DividendYieldService
+from service.dividend_yieldcal_service import DividendYieldService
 from service.watchlist_stocks_service import WatchlistService
 from service.stockdaily_service import StockDailyFService
 
@@ -147,38 +147,47 @@ def load_segmented_tickers(data:pd.DataFrame, session:Session)-> int:
     service = SegmentedStocksService(session)
     return service.save_stocks(records)
 
-##def load_dividend_yield_calculator(data:pd.DataFrame, session:Session)-> int:
-    dividend_yield_cal=[
-        DividendYieldGain(
-            ticker = row['ticker'],
-            current_date=row['current_date'],
-            current_adjclose=row['current_adjclose'],
-            historical_date=row['historical_date'],
-            actual_days=row['actual_days'],
-            price_diff=row['price_diff'],
-            pct_change=row['pct_change'],
-            watchlist_status=row['watchlist_status'],
-            name=row['name'],
-            market_cap=row['market_cap'],
-            dividend_per_share=row['dividend_per_share'],
-            raw_payout=row['raw_payout'],
-            frequency=row['frequency'],
-            quarter=row['quarter'],
-            dividend_status=row['dividend_status'],
-            dividend_yield_pct=row['dividend_yield_pct'],
-            three_year_yield=row['three_year_yield'],
-            five_year_yield=row['five_year_yield'],
-            ten_year_yield=row['ten_year_yield'],
-            three_year_pct=row['three_year_pct'],
-            fie_year_pct=row['five_year_pct'],
-            ten_year_pct=row['ten_year_pct'],
-            action_signal=row['action_signal']
+def load_dividend_yield_calculator(data:pd.DataFrame, session:Session)-> int:
+    """"
+    Load capital gain threshold into PostgreSQL.
+    """
 
-        )
-        for _, row in data.iterrows()
+    if data.empty:
+        return 0
+
+    db_columns=[
+        'ticker',
+        'name',
+        'latest_date',
+        'current_adjclose',
+        'market_cap',
+        'baseline_date',
+        'historical_adjclose',
+        'dividend_per_share',
+        'dividend_status',
+        'raw_payout',
+        'dividend_yield_pct',
+        'actual_days',
+        'price_diff',
+        'pct_change',
+        'watchlist_status',
+        'three_year_gain',
+        'five_year_gain',
+        'ten_year_gain',
+        'three_year_gain_pct',
+        'five_year_gain_pct',
+        'ten_year_gain_pct',
+        'action_signal',
+        'quarter',
+        'frequency'
     ]
+
+    clean_df=data[db_columns]
+
+    records = clean_df.to_dict('records')
     service = DividendYieldService(session)
-    return service.save_stocks(dividend_yield_cal)
+
+    return service.save_stocks(records)
 
 def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
     """
@@ -201,10 +210,7 @@ def load_watchlist_service(data:pd.DataFrame, session:Session)-> int:
                 'dividend_per_share',
                 'earnings_pershare',
                 'raw_payout',
-                'actual_days',
-                'frequency',
-                'quarter',
-                'year']
+                'actual_days']
     clean_df=data[db_columns]
 
     records = clean_df.to_dict('records')

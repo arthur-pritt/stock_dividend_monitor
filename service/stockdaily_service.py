@@ -7,7 +7,7 @@ class StockDailyFService:
     Business logic for managing the  daily stock table.
     """
 
-    def __int__(self, session:Session):
+    def __init__(self, session:Session):
         self.repository = StockDailyFlatRepo(session)
         self.session = session 
 
@@ -17,7 +17,6 @@ class StockDailyFService:
         """
 
         self.repository.save(stockdailyflat)
-        self.session.commit()
 
     def save_stocks(self, stockdailyflats:list[StockDailyFlat])-> int:
         """
@@ -60,10 +59,7 @@ class StockDailyFService:
         """
         Delete one stock and return true if deleted and false if not found"""
 
-        deleted = self.repository.delete(ticker)
-        if deleted:
-            self.session.commit()
-        return deleted 
+        return self.repository.delete(ticker)
 
     def update_stock(self, stockdailyflat:StockDailyFlat)-> None:
         """
@@ -71,7 +67,7 @@ class StockDailyFService:
         """
 
         self.repository.update(stockdailyflat)
-        self.session.commit()
+    
 
 
 

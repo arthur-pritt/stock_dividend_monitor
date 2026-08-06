@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database.models import DividendYieldGain
 from database.repository import DividendYieldGainRepo
 
-class StockService:
+class DividendYieldService:
     """
     Business logic for managing the stock universer.
     """
@@ -17,7 +17,6 @@ class StockService:
         Save a single stock ticker"""
 
         self.repository.save(dividendyieldgain)
-        self.session.commit()
 
     def save_stocks(self, dividendyieldgains: list[DividendYieldGain])-> int:
         """
@@ -26,8 +25,9 @@ class StockService:
                number of stocks saved.
         """
 
-        self.repository.save_many(dividendyieldgains)
+        count= self.repository.save_many(dividendyieldgains)
         self.session.commit()
+        return count
 
     def get_stock(self, ticker:str)-> DividendYieldGain | None:
         """
@@ -65,11 +65,7 @@ class StockService:
               False if not found
         """
 
-        deleted = self.repository.delete(ticker)
-
-        if deleted:
-            self.session.commit()
-        return deleted
+        return self.repository.delete(ticker)
 
     def update_stock(self, dividendyieldgain:DividendYieldGain)-> None:
         """
@@ -77,4 +73,4 @@ class StockService:
         """
 
         self.repository.update(dividendyieldgain)
-        self.session.commit() 
+         

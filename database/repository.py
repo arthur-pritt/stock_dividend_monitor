@@ -12,7 +12,7 @@ from database.models import(
     Dividend,
     Earnings,
     DividendCompanies,
-    #DividendYieldGain,
+    DividendYieldGain,
     NonDividendCompanies,
     StockDailyWatchlist,
     StockDailyFlat,
@@ -100,7 +100,6 @@ class StockRepository:
             self.session.delete(stock)
             return True 
         return False
-
 
 class DailyStockPriceRepo:
     def __init__(self, session:Session):
@@ -198,7 +197,6 @@ class Historical90DaysDataRepo:
         Note: This method does not commit the transaction.
         """
         self.session.add(historical90daysdata)
-
 
     def save_many(self, records:list[Historical90DaysData], batch_size:int=2000)-> int:
         """
@@ -670,10 +668,7 @@ class StockDailyWatchlistRepo:
                     'dividend_per_share': stmt.excluded.dividend_per_share,
                     'earnings_pershare' : stmt.excluded.earnings_pershare,
                     'raw_payout': stmt.excluded.raw_payout,
-                    'actual_days': stmt.excluded.actual_days,
-                    'frequency':stmt.excluded.frequency,
-                    'quarter': stmt.excluded.quarter,
-                    'year':stmt.excluded.year
+                    'actual_days': stmt.excluded.actual_days
                 }
             )
 
@@ -720,58 +715,100 @@ class StockDailyWatchlistRepo:
         self.session.delete(StockDailyWatchlist)
 
 
-#class DividendYieldGainRepo:
- #   def __init__(self, session:Session):
+class DividendYieldGainRepo:
+    def __init__(self, session:Session):
         self.session = session 
 
-  #  def save(self, dividendyieldgain:DividendYieldGain)-> None:
+    def save(self, dividendyieldgain:DividendYieldGain)-> None:
         """
         Adding a single dividend yield object to the seesion.
         Note: This method does not commit the transaction."""
 
         self.session.add(dividendyieldgain)
 
- #   def save_many(self, dividendyieldgains:list[DividendYieldGain])-> None:
+    def save_many(self, records:list[DividendYieldGain], batch_size:int=2000)-> int:
         """
         Adding multiple dividend yield object to the session.
         Note: This method does not commit the transaction.
         """
 
-        self.session.add_all(dividendyieldgains)
+        if not records:
+            return 0
+
+        total_processed = 0
+        #Chunk records to prevent large SQL payload limits
+        for i in range(0, len(records), batch_size):
+            chunk = records[i : i  + batch_size]
+
+            #1. Build PostgreSQL insert statement
+            stmt = insert(DividendYieldGain).values(chunk)
+
+            #2. Adding Persistence behaviour
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker', 'latest_date'],
+                set_={
+                    'name': stmt.excluded.name,
+                    'market_cap': stmt.excluded.market_cap,
+                    'historical_adjclose':stmt.excluded.historical_adjclose,
+                    'dividend_per_share': stmt.excluded.dividend_per_share,
+                    'dividend_status': stmt.excluded.dividend_status,
+                    'raw_payout': stmt.excluded.raw_payout,
+                    'dividend_yield_pct': stmt.excluded.dividend_yield_pct,
+                    'actual_days': stmt.excluded.actual_days,
+                    'price_diff': stmt.excluded.price_diff,
+                    'pct_change': stmt.excluded.pct_change,
+                    'quarter': stmt.excluded.quarter,
+                    'frequency': stmt.excluded.frequency,
+                    'watchlist_status': stmt.excluded.watchlist_status,
+                    'three_year_gain': stmt.excluded.three_year_gain,
+                    'five_year_gain': stmt.excluded.five_year_gain,
+                    'ten_year_gain': stmt.excluded.ten_year_gain,
+                    'three_year_gain_pct':stmt.excluded.three_year_gain_pct,
+                    'five_year_gain_pct': stmt.excluded.five_year_gain_pct,
+                    'ten_year_gain_pct': stmt.excluded.ten_year_gain_pct,
+                    'action_signal': stmt.excluded.action_signal
+                }
+            )
+
+            #3. Execute bulk statement
+            result = self.session.execute(upsert_stmt)
+            total_processed +=(result.rowcount or len(chunk))
+        return total_processed
 
 
-  #  def get_by_ticker(self, ticker:str)->None:
+    def get_by_ticker(self, ticker:str)->None:
 
         return self.session.get(
             DividendYieldGain,
             ticker
         )
 
-#    def get_all(self)-> list[DividendYieldGain]:
+    def get_all(self)-> list[DividendYieldGain]:
         """
         Retrieve all the dividend yield objects."""
 
         statement = select(DividendYieldGain)
-        return self.session.execute(
+        return list(self.session.execute(
             statement
-        ).scalar().all()
+        ).scalars().all())
+    
 
- #   def exists(self, ticker:str)-> bool:
+    def exists(self, ticker:str)-> bool:
         """
         Checks whether a stock exists.
         """
 
         return self.get_by_ticker(ticker) is not None 
 
-  #  def count(self)-> int:
+    def count(self)-> int:
         """
         Return the total number of stocks.
         """
 
         statement = select(func.count()).select_from(DividendYieldGain)
-        return self.session.scalar(statement)
+        return self.session.scalar(statement) or 0
 
-#    def delete(self, dividendyieldgain:DividendYieldGain)-> None:
+    def delete(self, dividendyieldgain:DividendYieldGain)-> None:
         """
         Delete a dividend yield gain object."""
         self.session.delete(dividendyieldgain)

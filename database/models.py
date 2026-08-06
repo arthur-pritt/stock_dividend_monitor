@@ -197,8 +197,6 @@ class Earnings(Base):
         DateTime(timezone=True),
         server_default=func.now())
 
-    
-
 class StockDailyFlat(Base):
     __tablename__="stock_daily_flat"
 
@@ -405,26 +403,11 @@ class StockDailyWatchlist(Base):
 
     raw_payout : Mapped[Decimal] = mapped_column(
         Numeric(10,2),
-        nullable=False 
+        nullable=True
     )
 
     actual_days : Mapped[int] = mapped_column(
         Integer,
-        nullable=False 
-    )
-
-    frequency : Mapped[str] = mapped_column(
-        Text,
-        nullable=False 
-    )
-
-    quarter : Mapped[int]= mapped_column(
-        BigInteger,
-        nullable=False 
-    )
-
-    year : Mapped[int]= mapped_column(
-        BigInteger,
         nullable=False 
     )
 
@@ -459,6 +442,15 @@ class DividendYieldGain(Base):
         Numeric(10,2),
         nullable=False
         )
+
+    frequency : Mapped[str] = mapped_column(
+        Text,
+        nullable=True
+        )
+
+    quarter : Mapped[int]= mapped_column(
+        BigInteger,
+        nullable=True)
     
     baseline_date: Mapped[Date] = mapped_column(
         Date,
@@ -518,17 +510,17 @@ class DividendYieldGain(Base):
         nullable=False 
     )
 
-    three_year_pct: Mapped[Decimal]= mapped_column(
+    three_year_gain_pct: Mapped[Decimal]= mapped_column(
         Numeric(10,2),
         nullable=False 
     )
 
-    five_year_pct: Mapped[Decimal]= mapped_column(
+    five_year_gain_pct: Mapped[Decimal]= mapped_column(
         Numeric(10, 2),
         nullable=False 
     )
 
-    ten_year_pct: Mapped[Decimal]= mapped_column(
+    ten_year_gain_pct: Mapped[Decimal]= mapped_column(
         Numeric(10,2),
         nullable=False 
     )
