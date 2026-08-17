@@ -183,8 +183,36 @@ def compute_ticker_transition(
     logger.info(f"Number of new tickers {new_df.shape[0]}")
     logger.info(f"\nCreation of four Dataframe:COMPLETE")
 
-
     return (unchanged_df,changed_df,exited_df,new_df)
+
+def generate_watchlist_report(changed_df:pd.DataFrame, new_entrants_df:pd.DataFrame)->pd.DataFrame:
+    """
+    Takes changed_df and new_entrants_df as inputs and combines them to produce a pandas dataframe.
+    """
+
+    #Validation
+
+    if (
+        "ticker" not in changed_df.columns
+        or "pct_change_today" not in changed_df.columns
+        or "ticker" not in new_entrants_df.columns
+        or "pct_change_today" not in new_entrants_df.columns
+    ):
+        raise ValueError(f"Either  changed_df or new_entrants_df is MISSING REQUIRED COLUMNS")
+
+    #Combine changed_df and new_entrants_df
+    combined_df=pd.concat([changed_df,
+                           new_entrants_df],
+                           axis=1,
+                           ignore_index=True)
+
+    #Sort by pct_change_today
+    sorted_df=combined_df.sort_values(
+        "pct_change_today",
+        ascending=False
+    )
+
+    return  sorted_df
 
     
 
@@ -194,18 +222,18 @@ if __name__ == "__main__":
     filtered_watchlist=filtered_watchlist_df(column_name)
     div_signal=get_dividend_calculation()
     sell_signal=filtered_action_signal(div_signal)
-    yesterday_watchlist_df=get_yesterday_snapshot('watchlist_status')
-    yesterday_action_signal_df=get_yesterday_snapshot('action_signal')
-    today_saved_watchlist=save_snapshot(filtered_watchlist, 'watchlist_status')
-    today_saved_action_signal=save_snapshot(sell_signal,'action_signal')
-    (watchlist_unchanged,
-     watchlist_changed,
-     watchlist_exited,
-     watchlist_new)=compute_ticker_transition(yesterday_watchlist_df,filtered_watchlist, 'watchlist_status')
-    (action_signal_unchanged,
-     action_signal_changed,
-     action_signal_exited,
-     action_signal_new)=compute_ticker_transition(yesterday_action_signal_df,sell_signal, 'action_signal')
+    #yesterday_watchlist_df=get_yesterday_snapshot('watchlist_status')
+    #yesterday_action_signal_df=get_yesterday_snapshot('action_signal')
+    #today_saved_watchlist=save_snapshot(filtered_watchlist, 'watchlist_status')
+    #today_saved_action_signal=save_snapshot(sell_signal,'action_signal')
+    #(watchlist_unchanged,
+     #watchlist_changed,
+     #watchlist_exited,
+     #watchlist_new)=compute_ticker_transition(yesterday_watchlist_df,filtered_watchlist, 'watchlist_status')
+    #(action_signal_unchanged,
+     #action_signal_changed,
+     #action_signal_exited,
+     #action_signal_new)=compute_ticker_transition(yesterday_action_signal_df,sell_signal, 'action_signal')
     
 
     
