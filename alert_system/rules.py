@@ -40,7 +40,7 @@ def filtered_watchlist_df(watchlist_df:pd.DataFrame)->pd.DataFrame :
         logger.warning(f"{unknown_categories_df}")
 
     alert_df=watchlist_df[watchlist_df['watchlist_status'].isin(alert_statuses)].copy()
-    logger.info(f" Alert Status has {alert_df.shape[0]} record(s)")
+    logger.info(f"Watchlist_status has {alert_df.shape[0]} record(s)")
     logger.info(f"SKYROCKET & DROP status filtered SUCCESSFULLY")
 
     #Sort by pct_change in descending order.
@@ -51,13 +51,14 @@ def filtered_watchlist_df(watchlist_df:pd.DataFrame)->pd.DataFrame :
     )
 
     logger.info(f"\nSKYROCKET & DROP dataset sorted SUCCESSFULLY")
+    print(alert_df[0:10])
     return alert_df
 
 def filtered_action_signal(div_gain_df:pd.DataFrame)->pd.DataFrame:
     """
     - Takes the dataframe returned by dividend gain calculation.
     - Filters the action_signal column to have all the THREE SELL signals excluding HOLD.
-    - Returns ONLY the dataframe with THREE SELL signals.
+    - Returns ONLY the dataframe with THREE SELL signals and adds a priority-ranking column
     """
 
     # Confirm that sell signal column exists in the dataframe and fail loudly if it doesn't exist.
@@ -116,13 +117,98 @@ def filtered_action_signal(div_gain_df:pd.DataFrame)->pd.DataFrame:
     logger.info(f"SELL SIGNAL STATUS contains {action_signal_df.shape[0]} record(s)")
     logger.info(f"\nSELL SIGNAL STATUS filtered and sorted successfully. PROCEED")
 
+    #print(action_signal_df[0:10])
+
     return action_signal_df
+
+def compute_ticker_transition(
+        yesterday_df:pd.DataFrame,
+        today_df:pd.DataFrame,
+        status_column: str
+        )->tuple[
+            pd.DataFrame,
+            pd.DataFrame, 
+            pd.DataFrame, 
+            pd.DataFrame
+            ]:
+    """
+    -Takes yesterday's and today's filtered dataframe of the same report type( filtered_watchlist_df and filtered_action_df)
+    -Returns  four different dataframe buckets describing what changed.
+    """
+
+    #Receives yesterday_df and today_df
+    #merge on ticker(ticker matching rows)
+
+    logger.info(f"Merging started: yesteday's and today's filtered dataframe of the same report type")
+
+    merged_df= yesterday_df.merge(
+        today_df,
+        on=["ticker"],
+        how="outer",
+        indicator=True,
+        validate="one_to_one",
+        suffixes=("_yesterday","_today")
+    )
+
+    #Creation of 4 buckets:
+
+    yesterday_column= status_column + '_yesterday'
+    today_column= status_column + '_today'
+
+    logger.info(f"Merging COMPLETE")
+    logger.info(f"Creation of 4 buckets: Unchanged_status, Changed_status, Exited_tickers, New_tickers")
+    #Unchanged_status-BOTH TICKERS STATUS REMAIN UNCHANGED
+    unchanged_status=((merged_df['_merge']=="both") & (merged_df[yesterday_column] == merged_df[today_column]))
+    unchanged_df=merged_df[unchanged_status]
+
+    logger.info(f"Number of unchanged ticker status {unchanged_df.shape[0]}")
+
+
+    #Changed Status- BOTH TICKERS STATUS PRESENT BUT POSITION CHANGES
+    changed_status=((merged_df['_merge'] =="both") & (merged_df[yesterday_column] != merged_df[today_column]))
+    changed_df=merged_df[changed_status]
+    logger.info(f"Number of changed ticker status {changed_df.shape[0]}")
+
+    
+    #Dropped_tickers_status- Ticker Present Yesterday but today the position changed
+    exited_tickers=merged_df['_merge'] =="left_only"
+    exited_df=merged_df[exited_tickers]
+
+    logger.info(f"Number of dropped/exited tickers {exited_df.shape[0]}")
+
+    #New_tickers_status- New Ticker Present Today. New Position
+    new_tickers=merged_df['_merge']=="right_only"
+    new_df = merged_df[new_tickers]
+
+    logger.info(f"Number of new tickers {new_df.shape[0]}")
+    logger.info(f"\nCreation of four Dataframe:COMPLETE")
+
+
+    return (unchanged_df,changed_df,exited_df,new_df)
+
+    
 
 if __name__ == "__main__":
     logger.info(f"Starting the filtering process...")
     column_name = get_watchlist_status()
-    filtered_data=filtered_watchlist_df(column_name)
+    filtered_watchlist=filtered_watchlist_df(column_name)
     div_signal=get_dividend_calculation()
     sell_signal=filtered_action_signal(div_signal)
+    yesterday_watchlist_df=get_yesterday_snapshot('watchlist_status')
+    yesterday_action_signal_df=get_yesterday_snapshot('action_signal')
+    today_saved_watchlist=save_snapshot(filtered_watchlist, 'watchlist_status')
+    today_saved_action_signal=save_snapshot(sell_signal,'action_signal')
+    (watchlist_unchanged,
+     watchlist_changed,
+     watchlist_exited,
+     watchlist_new)=compute_ticker_transition(yesterday_watchlist_df,filtered_watchlist, 'watchlist_status')
+    (action_signal_unchanged,
+     action_signal_changed,
+     action_signal_exited,
+     action_signal_new)=compute_ticker_transition(yesterday_action_signal_df,sell_signal, 'action_signal')
     
+
+    
+    
+
     
