@@ -185,6 +185,36 @@ def compute_ticker_transition(
 
     return (unchanged_df,changed_df,exited_df,new_df)
 
+def missing_tickers_report(exited_df:pd.DataFrame,watchlist_df:pd.DataFrame)->tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    -Takes two dataframe exited_df and watchlist_df
+    -Exited_df checks for membership in watchlist_df
+    -Returns two dataframe as tuple"""
+
+    logger.info(f"Checking missing tickers if present or genuinely missing from the watchlist universe")
+
+    #Validate the ticker column in both exited_df & watchlist_df
+    if ("ticker" not in exited_df.columns
+        or 'ticker' not in watchlist_df.columns):
+
+        raise ValueError(f"Ticker column does not exist either in exited_df or watchlist_df")
+
+    logger.info(f"Ticker column present in both dataframe.")
+    
+    #Takes exited_df and checks ticker membership in watchlist_df with isin()method
+    #Tickers present in watchlist_df are still_present_df
+    #Tickers complete absent in watchlist_df are genuinely_missing_df
+
+    membership_mask=exited_df['ticker'].isin(watchlist_df['ticker'])
+
+    still_present_df=exited_df[membership_mask]
+    genuinely_missing_df=exited_df[~membership_mask]
+    logger.info(f"Producing two dataframes: still_present_df and genuinely_missing_df")
+    logger.info(f"Tickers that are still present in the watchlist universe: {still_present_df.shape[0]}")
+    logger.warning(f"Tickers that are absent in the watchlist universe: {genuinely_missing_df.shape[0]}")
+
+    return(still_present_df,genuinely_missing_df)
+
 def generate_watchlist_report(changed_df:pd.DataFrame, new_entrants_df:pd.DataFrame)->pd.DataFrame:
     """
     Takes changed_df and new_entrants_df as inputs and combines them to produce a pandas dataframe.
@@ -203,13 +233,14 @@ def generate_watchlist_report(changed_df:pd.DataFrame, new_entrants_df:pd.DataFr
     #Combine changed_df and new_entrants_df
     combined_df=pd.concat([changed_df,
                            new_entrants_df],
-                           axis=1,
+                           axis=0,
                            ignore_index=True)
 
     #Sort by pct_change_today
     sorted_df=combined_df.sort_values(
         "pct_change_today",
-        ascending=False
+        ascending=False,
+        ignore_index=True
     )
 
     return  sorted_df
@@ -234,13 +265,14 @@ def generate_action_signal_report(changed_df:pd.DataFrame, new_entrants_df:pd.Da
         changed_df,
         new_entrants_df
     ],
-    axis=1,
+    axis=0,
     ignore_index=True)
 
     #Sort by pct_change_today
     sorted_df= combined_df.sort_values(
         "pct_change_today",
-        ascending=False
+        ascending=False,
+        ignore_index=True
     )
 
     return sorted_df
@@ -249,10 +281,10 @@ def generate_action_signal_report(changed_df:pd.DataFrame, new_entrants_df:pd.Da
 
 if __name__ == "__main__":
     logger.info(f"Starting the filtering process...")
-    column_name = get_watchlist_status()
-    filtered_watchlist=filtered_watchlist_df(column_name)
-    div_signal=get_dividend_calculation()
-    sell_signal=filtered_action_signal(div_signal)
+    watchlist_data = get_watchlist_status()
+    filtered_watchlist=filtered_watchlist_df(watchlist_data)
+    sell_signal_data=get_dividend_calculation()
+    sell_signal=filtered_action_signal(sell_signal_data)
     yesterday_watchlist_df=get_yesterday_snapshot('watchlist_status')
     yesterday_action_signal_df=get_yesterday_snapshot('action_signal')
     today_saved_watchlist=save_snapshot(filtered_watchlist, 'watchlist_status')
@@ -265,11 +297,16 @@ if __name__ == "__main__":
      action_signal_changed,
      action_signal_exited,
      action_signal_new)=compute_ticker_transition(yesterday_action_signal_df,sell_signal, 'action_signal')
+    
+    (watchlist_present_tickers,
+     watchlist_absent_tickers)=missing_tickers_report(watchlist_exited,watchlist_data)
+    (action_present_tickers,
+     action_absent_tickers)=missing_tickers_report(action_signal_exited,sell_signal_data)
 
     watchlist_report=generate_watchlist_report(watchlist_changed,watchlist_new)
     action_report=generate_action_signal_report(action_signal_changed,action_signal_new)
 
-    
+
     
 
     
