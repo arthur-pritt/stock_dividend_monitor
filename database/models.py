@@ -530,9 +530,6 @@ class DividendYieldGain(Base):
         nullable=False 
     )
 
-    earnings_pershare : Mapped[str] = mapped_column(
-        Numeric(10,2),
-        nullable=False)
     
     created_at: Mapped[datetime]= mapped_column(
         DateTime(timezone=True),
