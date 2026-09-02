@@ -11,6 +11,8 @@ from config.logging_config import (
     get_logger
 )
 
+from utilis.retry_operation import retry_operation
+
 #Initializing the logging system
 setup_logging()
 
@@ -20,7 +22,7 @@ logger=get_logger(__name__)
 from data_access import get_data_for_date
 
 
-def load_streamlit_data()->pd.DataFrame:
+def load_data_once()->tuple[pd.DataFrame,pd.DataFrame]:
     """"
     Centralize the operations of obtaining data for streamlit use and returning them.
     """
@@ -34,10 +36,13 @@ def load_streamlit_data()->pd.DataFrame:
     logger.info("\nCOMPLETE: ALL data received and Ready")
 
     return watchlist_df, dividend_df
-    
+
+def load_streamlit_data():
+    """
+    Load streamlit data using the configured retry meechanisms"""
+    return retry_operation(load_data_once)
 
     
-
 if __name__ == "__main__":
     logger.info(f"\nReceiving data and Component to be consumed by Streamlit")
 
