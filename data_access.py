@@ -34,8 +34,8 @@ def get_data_for_date(session:Session, model:Type[Base], target_date:date=None)-
     logger.info(f"STARTING: Getting today's data===")
 
     #Get today's date
-    if target_date is None:
-        target_date=date.today()
+    #if target_date is None:
+    #    target_date=date.today()
 
     logger.info(f"Expected Date:{target_date}")
 
@@ -67,7 +67,7 @@ def get_data_for_date(session:Session, model:Type[Base], target_date:date=None)-
 
     if missing_columns or extra_columns:
         raise ValueError(
-            f"Invalid data structure:"
+            f"Invalid data structure: "
             f"Missing: {missing_columns}."
             f"Extra: {extra_columns}"
         )
@@ -88,8 +88,8 @@ def get_data_for_date(session:Session, model:Type[Base], target_date:date=None)-
 if __name__ == "__main__":
     logger.info(f"STARTED: Connecting & Reading Data From the Database====")
     with get_session() as session:
-        watchlist_df=get_data_for_date(session, StockDailyWatchlist,target_date=date(2026,8,24))
-        dividend_df=get_data_for_date(session, DividendYieldGain,target_date=date(2026,8,20))
+        watchlist_df=get_data_for_date(session, StockDailyWatchlist,target_date=date(2026,8,26))
+        dividend_df=get_data_for_date(session, DividendYieldGain,target_date=date(2026,8,26))
     print(f"COMPLETED: Watchlist Data Already Pulled")
     #print(watchlist_df)
     print(f"COMPLETED: Capital Gain For Dividend Earning Stocks")
