@@ -54,15 +54,43 @@ def get_available_dates()->set[date]:
     dividend_dates = set(dividend_result.scalars())
 
     common_dates= watchlist_dates & dividend_dates
-    logger.info(f"\nCompleted Getting Common Dates in the Two Datasets")
+    logger.info(f"Completed Getting Common Dates in the Two Datasets")
 
     return common_dates
 
-def resolve_target_date():
+def resolve_target_date(
+        database_dates:set[date], 
+        selected_date:date | None=None)->date:
     """
     Provide the lastest available ETL date as default
     Allow users to select the date.
     """
+    logger.info("\nGetting the target dates===")
+    #ETL_available dates as the baseline of dates actually available
+    #if user has not selected a date, use ETL_available date as the default
+    #if user has selected a date, check whether that date exists in common dates
+    #if it exists- use that date as target_date
+    #if it doesn't exists- No dates available
+    #Return one concrete target-date
+    
+    if not database_dates:
+        raise ValueError(f"The ETL Database has no dates")
+
+    latest_etl_date=max(database_dates)
+
+    if selected_date is None:
+        target_date=latest_etl_date
+        logger.info(f"Latest available ETL date is: {target_date}")
+        return target_date
+
+    if selected_date in database_dates:
+        target_date=selected_date
+        logger.info(f"Selected Date [{target_date}]Exists in the Database sets")
+        return target_date
+    else:
+        logger.warning(f"The requested date isn't available")
+        raise ValueError(f"{selected_date} doesn't exists in the database")
+
 
 
 def load_data_once()->tuple[pd.DataFrame,pd.DataFrame]:
@@ -90,7 +118,9 @@ if __name__ == "__main__":
     logger.info(f"\nReceiving data and Component to be consumed by Streamlit")
 
     common_dates=get_available_dates()
-    received_watchlist, received_dividend= load_streamlit_data()
+    target_date=resolve_target_date(common_dates, selected_date=date(2026, 8, 25))
+
+    #received_watchlist, received_dividend= load_streamlit_data()
     #print(received_watchlist)
     #print(received_dividend)
     
