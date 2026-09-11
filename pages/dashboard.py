@@ -2,16 +2,60 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px 
+import datetime
+
 
 from data_loader import load_streamlit_data
+from style import apply_custom_style
+
+
+st.set_page_config(page_title="Dashboard", layout="wide")
+apply_custom_style()
 
 def generate_header_title():
     """
     Display 'Dashboard' as the header & 'Overview of today's market and watchlist as text'
     """
 
-    st.title('Dashboard')
-    st.caption(f"Overview of Today's Market and Watchlist")
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    st.markdown(f"""
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <h1 style="margin-bottom: 0; font-size: 2rem;">📈 Dashboard</h1>
+            <p style="color: #9CA3AF; margin-top: 0.2rem;">Overview of today's market and watchlist</p>
+        </div>
+        <div style="text-align: right; color: #9CA3AF; font-size: 0.9rem;">
+            🕐 Last updated: {now}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_metric_card(label, value, subtext, color, icon):
+    """
+    Renders a single metric card as HTML.
+    """
+
+    st.markdown(f"""
+    <div style="
+        background-color: #111827;
+        border: 1px solid #1F2937;
+        border-radius: 12px;
+        padding: 1.2rem;
+        height: 100%;
+    ">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: {color}; font-size: 0.9rem; font-weight: 600;">{label}</span>
+            <span style="font-size: 1.3rem;">{icon}</span>
+        </div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #E5E7EB; margin-top: 0.4rem;">
+            {value}
+        </div>
+        <div style="color: #6B7280; font-size: 0.8rem; margin-top: 0.3rem;">
+            {subtext}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
      
 
@@ -40,31 +84,31 @@ def generate_summary_cards(watchlist_df:pd.DataFrame, dividend_df:pd.DataFrame):
 
     #Generate the metrics to put inside the columns
     with col1:
-        st.metric(
-            label='Total Stocks Monitored',
-            value= stocks_monitored_count,
-            width='stretch'
+        render_metric_card(
+            "Total Stocks Monitored", stocks_monitored_count,
+            "All monitored stocks", "#3B82F6", "📊"
+
         )
 
 
     with col2:
-        st.metric(
-            label="Dividend Payers",
-            value=dividend_paying_stocks,
-            help="Number of stocks in the watchlist currently classified as dividend paying."
-
+        render_metric_card(
+            "Dividend Payers", dividend_paying_stocks,
+            f"{dividend_pct:.1f}% of total", "#22C55E", "💰"
         )
+    
 
     with col3:
-        st.metric(
-            label="Current Watchlist",
-            value=current_watchlist
+        render_metric_card(
+            "Current Watchlist", current_watchlist,
+            f"{current_skyrocket} skyrocket / {current_drop} drop", "#F97316", "⚡"
+
         )
 
     with col4:
-        st.metric(
-            label="Avg 90D Price Change",
-            value=f"{average_price_movement:.2f}%"
+        render_metric_card(
+            "Avg 90D Price Change", f"{average_price_movement:.2f}%",
+            "All stocks", "#A855F7","📈"
         )
 
     return watchlist_df, dividend_df
@@ -109,84 +153,125 @@ def gen_price_change_dist(watchlist_df:pd.DataFrame):
     "30% to 50%",
     "> 50%"]
 
+    bar_colors = [
+        "#EF4444", "#F97316", "#F59E0B", "#FBBF24",
+        "#84CC16", "#22C55E","#10B981", "#3B82F6","#A855F7"
+    ]
+
+    st.subheader("Price Change Distribution (90 Days)")
+
     fig = px.bar(
         x=bucket_labels,
         y=bucket_counts.values,
         labels={
-            "x": "Percentage Change",
-            "y": "Number of Stocks"
-        }
+            "x": "90 Day Price Change (%)",
+            "y": "Number  of  Stocks"
+        },
+        text=bucket_counts.values
     )
 
-    st.plotly_chart(fig)
+    fig.update_traces(
+        marker=dict(color=bar_colors),
+        textposition="outside"
+    )
+
+    fig.update_layout(
+        plot_bgcolor= "rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font_color="#E5E7EB",
+        xaxis=dict(showgrid=False, title_standoff=25),
+        yaxis=dict(showgrid=True,gridcolor="#1F2937"),
+        margin=dict(t=20, b=20, l=20, r=20)
+    )
+
+    st.plotly_chart(fig, use_container_width=True )
 
     return
 
-def gen_watchlist_preview(watchlist_df:pd.DataFrame):
-    """"Display the watchlist preview table.
+def get_status_badge(status):
+    """
+    Returns an HTML pill badge for a given status string.
     """
 
-    st.caption("Watchlist(5)")
+    colors = {
+        "SKYROCKET": ("#22C55E", "#052e16"),
+        "DROP": ("#EF4444", "#450a0a"),
+        "NORMAL": ("#3B82F6", "#172554"),
+    }
+    text_color, bg_color = colors.get(status, ("#9CA3AF", "#1F2937"))
+    return f'<span style="background-color:{bg_color}; color:{text_color}; padding:3px 10px; border-radius:999px; font-size:0.75rem; font-weight:600;">{status}</span>'
+  
 
-    watchlist_df=watchlist_df.copy()
+def render_watchlist_table(watchlist_df: pd.DataFrame):
+    st.caption("Watchlist (5)")
+    df = watchlist_df.copy().sort_values('pct_change', ascending=False).head(5)
 
-    watchlist_df=(watchlist_df.sort_values(
-        'pct_change',
-        ascending=False
-    ).head(5))
+    rows_html = ""
+    for _, row in df.iterrows():
+        badge = get_status_badge(row['watchlist_status'])
+        change_color = '#22C55E' if row['pct_change'] >= 0 else '#EF4444'
+        rows_html += (
+            f'<tr>'
+            f'<td style="padding:8px; color:#E5E7EB;">{row["ticker"]}</td>'
+            f'<td style="padding:8px; color:#9CA3AF;">{row["name"]}</td>'
+            f'<td style="padding:8px; color:#E5E7EB;">${row["current_adjclose"]:.2f}</td>'
+            f'<td style="padding:8px; color:{change_color};">{row["pct_change"]:.2f}%</td>'
+            f'<td style="padding:8px;">{badge}</td>'
+            f'</tr>'
+        )
 
-    display_df=watchlist_df[[
-        'ticker',
-        'name',
-        'current_adjclose',
-        'pct_change',
-        'watchlist_status'
-    ]].rename(columns={
-        'ticker': 'Ticker',
-        'name':'Company',
-        'current_adjclose':'Current Price',
-        'pct_change': '90D Change',
-        'watchlist_status': 'Status'
-    })
+    table_html = (
+        '<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">'
+        '<thead><tr style="color:#6B7280; text-align:left; border-bottom:1px solid #1F2937;">'
+        '<th style="padding:8px;">Ticker</th>'
+        '<th style="padding:8px;">Company</th>'
+        '<th style="padding:8px;">Price</th>'
+        '<th style="padding:8px;">90D Change</th>'
+        '<th style="padding:8px;">Status</th>'
+        '</tr></thead>'
+        f'<tbody>{rows_html}</tbody>'
+        '</table>'
+    )
 
-    display_df['90D Change']=display_df['90D Change'].map(lambda x: f"{x:.2f}%" )
-    
-    return display_df
+    st.markdown(table_html, unsafe_allow_html=True)  
 
-def gen_top_movers(watchlist_df:pd.DataFrame):
-    """Display top gainers and top losers.
-    """
+def gen_top_movers(watchlist_df: pd.DataFrame):
+    """Display top gainers and top losers as a styled HTML table."""
 
-    watchlist_col=watchlist_df[[
-        'ticker',
-        'name',
-        'pct_change'
-    ]]
+    watchlist_col = watchlist_df[['ticker', 'name', 'pct_change']]
 
-    top_gainers= (watchlist_col.sort_values(
-        'pct_change',
-        ascending=False
+    top_gainers = watchlist_col.sort_values('pct_change', ascending=False).head(5)
+    top_losers = watchlist_col.sort_values('pct_change', ascending=True).head(5)
 
-    ).head(5))
+    def build_table(df):
+        rows_html = ""
+        for i, (_, row) in enumerate(df.iterrows(), start=1):
+            change_color = '#22C55E' if row['pct_change'] >= 0 else '#EF4444'
+            rows_html += (
+                f'<tr>'
+                f'<td style="padding:8px; color:#6B7280;">{i}</td>'
+                f'<td style="padding:8px; color:#E5E7EB;">{row["ticker"]}</td>'
+                f'<td style="padding:8px; color:#9CA3AF;">{row["name"]}</td>'
+                f'<td style="padding:8px; color:{change_color}; text-align:right;">{row["pct_change"]:.2f}%</td>'
+                f'</tr>'
+            )
+        return (
+            '<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">'
+            '<thead><tr style="color:#6B7280; text-align:left; border-bottom:1px solid #1F2937;">'
+            '<th style="padding:8px;">#</th>'
+            '<th style="padding:8px;">Ticker</th>'
+            '<th style="padding:8px;">Company</th>'
+            '<th style="padding:8px; text-align:right;">90D Change</th>'
+            '</tr></thead>'
+            f'<tbody>{rows_html}</tbody>'
+            '</table>'
+        )
 
-    top_losers= (watchlist_col.sort_values(
-        'pct_change',
-        ascending=True
-    ).head(5))
-
-
-    show_gainers = st.toggle("Top Movers", value=True)
-
-    if show_gainers:
-        st.caption('Top Gainers')
-        st.dataframe(top_gainers, hide_index=True)
-
-    else:
-        st.caption('Top Losers')
-        st.dataframe(top_losers, hide_index=True)
-    
-
-    #return show_top_movers
+    tab1, tab2 = st.tabs(["Top Gainers", "Top Losers"])
+    with tab1:
+        st.markdown(build_table(top_gainers), unsafe_allow_html=True)
+    with tab2:
+        st.markdown(build_table(top_losers), unsafe_allow_html=True)
 
 
 
@@ -195,13 +280,17 @@ watchlist_df, dividend_df = load_streamlit_data()
 generate_header_title()
 generate_summary_cards(watchlist_df,dividend_df)
 gen_price_change_dist(watchlist_df)
-preview= gen_watchlist_preview(watchlist_df)
-top=gen_top_movers(watchlist_df)
 
-st.dataframe(
-    top,
-    hide_index=True
-)
+col_left, col_right = st.columns(2, gap='medium')
+
+with col_left:
+    with st.container(border=True):
+        render_watchlist_table(watchlist_df)
+    
+
+with col_right:
+    with st.container(border=True):
+        gen_top_movers(watchlist_df)
 
 
 
