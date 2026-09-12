@@ -7,6 +7,7 @@ import datetime
 
 from data_loader import load_streamlit_data
 from style import apply_custom_style
+from components import render_metric_card, get_status_badge
 
 
 st.set_page_config(page_title="Dashboard", layout="wide")
@@ -31,31 +32,7 @@ def generate_header_title():
     </div>
     """, unsafe_allow_html=True)
 
-def render_metric_card(label, value, subtext, color, icon):
-    """
-    Renders a single metric card as HTML.
-    """
 
-    st.markdown(f"""
-    <div style="
-        background-color: #111827;
-        border: 1px solid #1F2937;
-        border-radius: 12px;
-        padding: 1.2rem;
-        height: 100%;
-    ">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: {color}; font-size: 0.9rem; font-weight: 600;">{label}</span>
-            <span style="font-size: 1.3rem;">{icon}</span>
-        </div>
-        <div style="font-size: 1.8rem; font-weight: 700; color: #E5E7EB; margin-top: 0.4rem;">
-            {value}
-        </div>
-        <div style="color: #6B7280; font-size: 0.8rem; margin-top: 0.3rem;">
-            {subtext}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
      
 
@@ -79,8 +56,7 @@ def generate_summary_cards(watchlist_df:pd.DataFrame, dividend_df:pd.DataFrame):
     #Generate summary layouts with 4 horizontal containers
 
     col1, col2, col3, col4= st.columns(4,
-                                       gap="medium",
-                                       border=True)
+                                       gap="medium")
 
     #Generate the metrics to put inside the columns
     with col1:
@@ -187,19 +163,6 @@ def gen_price_change_dist(watchlist_df:pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True )
 
     return
-
-def get_status_badge(status):
-    """
-    Returns an HTML pill badge for a given status string.
-    """
-
-    colors = {
-        "SKYROCKET": ("#22C55E", "#052e16"),
-        "DROP": ("#EF4444", "#450a0a"),
-        "NORMAL": ("#3B82F6", "#172554"),
-    }
-    text_color, bg_color = colors.get(status, ("#9CA3AF", "#1F2937"))
-    return f'<span style="background-color:{bg_color}; color:{text_color}; padding:3px 10px; border-radius:999px; font-size:0.75rem; font-weight:600;">{status}</span>'
   
 
 def render_watchlist_table(watchlist_df: pd.DataFrame):
@@ -215,7 +178,7 @@ def render_watchlist_table(watchlist_df: pd.DataFrame):
             f'<td style="padding:8px; color:#E5E7EB;">{row["ticker"]}</td>'
             f'<td style="padding:8px; color:#9CA3AF;">{row["name"]}</td>'
             f'<td style="padding:8px; color:#E5E7EB;">${row["current_adjclose"]:.2f}</td>'
-            f'<td style="padding:8px; color:{change_color};">{row["pct_change"]:.2f}%</td>'
+            f'<td style="padding:8px; color:{change_color};">{"+" if row["pct_change"] >= 0 else ""}{row["pct_change"]:.2f}%</td>'
             f'<td style="padding:8px;">{badge}</td>'
             f'</tr>'
         )
@@ -252,7 +215,7 @@ def gen_top_movers(watchlist_df: pd.DataFrame):
                 f'<td style="padding:8px; color:#6B7280;">{i}</td>'
                 f'<td style="padding:8px; color:#E5E7EB;">{row["ticker"]}</td>'
                 f'<td style="padding:8px; color:#9CA3AF;">{row["name"]}</td>'
-                f'<td style="padding:8px; color:{change_color}; text-align:right;">{row["pct_change"]:.2f}%</td>'
+                f'<td style="padding:8px; color:{change_color}; text-align:right;">{"+" if row["pct_change"] >= 0 else ""}{row["pct_change"]:.2f}%</td>'
                 f'</tr>'
             )
         return (
