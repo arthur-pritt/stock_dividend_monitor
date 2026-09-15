@@ -88,11 +88,8 @@ def get_data_for_date(session:Session, model:Type[Base], target_date:date=None)-
 if __name__ == "__main__":
     logger.info(f"STARTED: Connecting & Reading Data From the Database====")
     with get_session() as session:
-        watchlist_df=get_data_for_date(session, StockDailyWatchlist,target_date=date(2026,8,26))
-        dividend_df=get_data_for_date(session, DividendYieldGain,target_date=date(2026,8,26))
-    print(f"COMPLETED: Watchlist Data Already Pulled")
-    #print(watchlist_df)
-    print(f"COMPLETED: Capital Gain For Dividend Earning Stocks")
-    #print(dividend_df)    
+        watchlist_df=get_data_for_date(session, StockDailyWatchlist)
+        dividend_df=get_data_for_date(session, DividendYieldGain)
+    
 
 

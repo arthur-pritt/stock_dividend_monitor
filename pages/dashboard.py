@@ -1,29 +1,19 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px 
 import datetime
 
 
-from data_loader import load_streamlit_data
-from style import apply_custom_style
-from components import render_metric_card, get_status_badge
-
-
-st.set_page_config(page_title="Dashboard", layout="wide")
-apply_custom_style()
+from data_loader import load_streamlit_data, get_available_dates
+from components import render_metric_card, get_status_badge, render_date_pill_selector
 
 def generate_header_title():
-    """
-    Display 'Dashboard' as the header & 'Overview of today's market and watchlist as text'
-    """
-
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     st.markdown(f"""
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
         <div>
-            <h1 style="margin-bottom: 0; font-size: 2rem;">📈 Dashboard</h1>
+            <h1 style="margin-bottom: 0; font-size: 2rem;">📈 Capital Gain Intelligence Dashboard</h1>
             <p style="color: #9CA3AF; margin-top: 0.2rem;">Overview of today's market and watchlist</p>
         </div>
         <div style="text-align: right; color: #9CA3AF; font-size: 0.9rem;">
@@ -31,10 +21,6 @@ def generate_header_title():
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-
-
-     
 
 def generate_summary_cards(watchlist_df:pd.DataFrame, dividend_df:pd.DataFrame):
     """
@@ -163,6 +149,61 @@ def gen_price_change_dist(watchlist_df:pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True )
 
     return
+
+def gen_status_breakdown(watchlist_df: pd.DataFrame):
+    """
+    Displays a donut chart breaking down SKYROCKET/DROP/NORMAL status distribution.
+    """
+    status_counts = watchlist_df['watchlist_status'].value_counts()
+
+    labels = status_counts.index.tolist()
+    values = status_counts.values.tolist()
+    total = sum(values)
+
+    color_map = {
+        "SKYROCKET": "#22C55E",
+        "DROP": "#EF4444",
+        "NORMAL": "#3B82F6",
+    }
+    colors = [color_map.get(label, "#6B7280") for label in labels]
+
+    legend_labels = [
+        f"{label} {value} ({value / total * 100:.1f}%)"
+        for label, value in zip(labels, values)
+    ]
+
+    st.subheader("Stock Status Breakdown")
+
+    fig = px.pie(
+        names=legend_labels,
+        values=values,
+        hole=0.65,
+    )
+
+    fig.update_traces(
+        marker=dict(colors=colors, line=dict(color="#0B1120", width=2)),
+        textinfo="percent",
+        textposition="outside",
+        textfont=dict(color="#E5E7EB", size=13),
+    )
+
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font_color="#E5E7EB",
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
+            x=1.05,
+        ),
+        margin=dict(t=40, b=40, l=40, r=40),
+        height=300,
+    )
+
+    st.plotly_chart(fig, use_container_width=True, theme=None)
   
 
 def render_watchlist_table(watchlist_df: pd.DataFrame):
@@ -239,10 +280,22 @@ def gen_top_movers(watchlist_df: pd.DataFrame):
 
 
 #Loading data
-watchlist_df, dividend_df = load_streamlit_data()
 generate_header_title()
+
+pill_col, _=st.columns([1,4])
+with pill_col:
+    available_dates = get_available_dates()
+    selected_date = render_date_pill_selector(available_dates)
+    st.session_state["selected_date"]=selected_date
+    st.write("")
+
+watchlist_df, dividend_df =load_streamlit_data(selected_date=st.session_state.get("selected_date"))
 generate_summary_cards(watchlist_df,dividend_df)
-gen_price_change_dist(watchlist_df)
+chart_col1, chart_col2 = st.columns([2,1])
+with chart_col1:
+    gen_price_change_dist(watchlist_df)
+with chart_col2:
+    gen_status_breakdown(watchlist_df)
 
 col_left, col_right = st.columns(2, gap='medium')
 

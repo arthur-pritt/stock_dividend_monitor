@@ -5,22 +5,36 @@ import math
 
 from data_loader import load_streamlit_data
 from style import apply_custom_style
-from components import render_metric_card, get_status_badge
+from components import render_metric_card, get_status_badge, render_date_pill_selector
+from data_loader import get_available_dates
 
 
-title_col, button_col = st.columns([5, 1])
+title_col, button_col = st.columns([5,1])
 with title_col:
     st.title('Watchlist')
     st.text('Stocks currently being monitored for significant price movement.')
+
+
 with button_col:
     st.write("")  # spacer to push button down, roughly aligning with title
     st.write("")
     if st.button("🔄 Refresh", use_container_width=True):
         st.rerun()
 
+pill_col, _=st.columns([1,4])
+with pill_col:
+    available_dates = get_available_dates()
+    selected_date = render_date_pill_selector(available_dates)
+    st.session_state["selected_date"] = selected_date
+
+st.write("")
+
 # Loading the data
 
-watchlist_df,_=load_streamlit_data()
+selected_date = st.session_state.get("selected_date")
+watchlist_df, _ = load_streamlit_data(selected_date=st.session_state.get("selected_date"))
+
+#watchlist_df,_=load_streamlit_data()
 
 # Building the summary statistics
 total_watchlist = len(watchlist_df)
@@ -51,13 +65,6 @@ with st.container(border= True):
 
     #st.subheader("watchlist")
 
-    latest_date = pd.to_datetime(
-        watchlist_df['latest_date']
-    ).max()
-
-    st.caption(
-        f"Date as of {latest_date:%B %d,%Y}"
-    )
     search_col, status_col, sort_col=st.columns([2,1,1])
 
     with search_col:

@@ -4,6 +4,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 from database.models import Base 
 from typing import Type 
+import streamlit as st
 from sqlalchemy import select
 from database.session import get_session
 from database.models import(
@@ -26,6 +27,7 @@ logger=get_logger(__name__)
 
 from data_access import get_data_for_date
 
+@st.cache_data(ttl=3600)
 def get_available_dates()->set[date]:
     """
     inspect the dates available in StockDailyWatchlist
@@ -100,7 +102,7 @@ def load_data_once(selected_date=None)->tuple[pd.DataFrame,pd.DataFrame]:
     logger.info(f"\nSTARTING:Receiving data to be consuming by streamlit")
     common_dates=get_available_dates()
 
-    target_date=resolve_target_date(common_dates, selected_date=None)
+    target_date=resolve_target_date(common_dates, selected_date=selected_date)
 
     with get_session() as session:
         watchlist_df=get_data_for_date(session, StockDailyWatchlist, target_date)
@@ -109,7 +111,7 @@ def load_data_once(selected_date=None)->tuple[pd.DataFrame,pd.DataFrame]:
     logger.info("\nCOMPLETE: ALL data received and Ready")
 
     return watchlist_df, dividend_df
-
+st.cache_data(ttl=3600)
 def load_streamlit_data(selected_date=None):
     """
     Load streamlit data using the configured retry meechanisms"""

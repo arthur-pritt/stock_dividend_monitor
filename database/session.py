@@ -26,9 +26,9 @@ def get_session():
         yield session 
         session.commit() #commit if no excepitions are raised
 
-    except Exception as e:
+    except Exception:
         session.rollback() #Roll back all staged changes if an error occurs
-        raise e #Re-raise exception so caller/pipeline is aware of the failure
+        raise  
 
     finally:
         session.close()
