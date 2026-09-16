@@ -45,7 +45,7 @@ db_name = _get_required_env("DB_NAME")
 db_host = _get_required_env("DB_HOST")
 
 # Building PostgreSQL connection URL
-db_url = (f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}")
+db_url = (f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?sslmode=require")
 
 # Create ONE reusable engine for the entire application
 _engine = create_engine(
